@@ -25,6 +25,13 @@ function approvalSubject(p, code) {
 }
 const CODE = /\[([A-Z0-9]{6})\]/;
 
+// Buttons as table cells with bgcolor: Outlook (and its phone app) drops the
+// background of a plain styled link, which leaves just bold text.
+function buttons(list) {
+  const cell = ([href, label, primary]) => `<td bgcolor="${primary ? '#1a7f37' : '#ffffff'}" style="border-radius:6px;${primary ? '' : 'border:1px solid #999;'}padding:0"><a href="${esc(href)}" style="display:inline-block;padding:10px 18px;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;color:${primary ? '#ffffff' : '#333333'};text-decoration:none;border-radius:6px">${esc(label)}</a></td>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px"><tr>${list.filter(b => b[0]).map(cell).join('<td width="10">&nbsp;</td>')}</tr></table>`;
+}
+
 function replyNotice(p, theirText, { draftId, draftUrl, id = p.id, code = crypto.randomBytes(4).toString('hex').slice(0, 6).toUpperCase(), settings = {} } = {}) {
   const prof = profileOf(settings);
   const self = prof.sender_email || prof.notify_emails[0] || '';
@@ -47,8 +54,7 @@ function replyNotice(p, theirText, { draftId, draftUrl, id = p.id, code = crypto
 <blockquote style="margin:0 0 12px;padding:8px 12px;border-left:3px solid #ccc;color:#333">${esc(said).replace(/\n/g, '<br>')}</blockquote>
 <p>Here's the reply I wrote, with times you're free:</p>
 <div style="margin:0 0 16px;padding:12px;border:1px solid #ddd;border-radius:8px">${esc(p.reply_draft).replace(/\n/g, '<br>')}</div>
-<p><a href="${esc(deskSend || approve)}" style="display:inline-block;padding:10px 18px;background:#1a7f37;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold">${deskSend ? 'Send it' : 'Approve and send'}</a>
-&nbsp; <a href="${esc(draftUrl)}" style="display:inline-block;padding:10px 18px;border:1px solid #999;color:#333;text-decoration:none;border-radius:6px">Change it first</a></p>
+${buttons([[deskSend || approve, deskSend ? 'Send it' : 'Approve and send', true], [draftUrl, 'Change it first', false]])}
 <p style="color:#666;font-size:12px">${deskSend ? '"Send it" opens your desk on this reply; tap Send it there and it goes from your Gmail right away. Nothing goes out until you do.' : '"Approve and send" opens a short email to yourself; hit send and the reply goes out at the next check, within the hour. Replying "send" to this email works too.'}</p>
 </div>`;
   return { to: prof.notify_emails, subject, body, htmlBody, code, draft_id: draftId };
