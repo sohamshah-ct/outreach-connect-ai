@@ -44,7 +44,7 @@ function replyNotice(p, theirText, { draftId, draftUrl, id = p.id, code = crypto
   const body = [
     `${who} (${p.email}) wrote back:`,
     `"${said}"`,
-    "Here's the reply I wrote, with times you're free:",
+    "Here's the reply I wrote:",
     p.reply_draft,
     deskSend ? `To send it, open your desk on this reply and tap Send it: ${deskSend}` : `To approve, reply to this email with "send" (or send yourself an email with the subject "${approvalSubject(p, code)}"). It goes out at the next check, within the hour.`,
     `To change it first, open the draft in Gmail: ${draftUrl}`,
@@ -52,7 +52,7 @@ function replyNotice(p, theirText, { draftId, draftUrl, id = p.id, code = crypto
   const htmlBody = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">
 <p>${esc(who)} (${esc(p.email)}) wrote back:</p>
 <blockquote style="margin:0 0 12px;padding:8px 12px;border-left:3px solid #ccc;color:#333">${esc(said).replace(/\n/g, '<br>')}</blockquote>
-<p>Here's the reply I wrote, with times you're free:</p>
+<p>Here's the reply I wrote:</p>
 <div style="margin:0 0 16px;padding:12px;border:1px solid #ddd;border-radius:8px">${esc(p.reply_draft).replace(/\n/g, '<br>')}</div>
 ${buttons([[deskSend || approve, deskSend ? 'Send it' : 'Approve and send', true], [draftUrl, 'Change it first', false]])}
 <p style="color:#666;font-size:12px">${deskSend ? '"Send it" opens your desk on this reply; tap Send it there and it goes from your Gmail right away. Nothing goes out until you do.' : '"Approve and send" opens a short email to yourself; hit send and the reply goes out at the next check, within the hour. Replying "send" to this email works too.'}</p>

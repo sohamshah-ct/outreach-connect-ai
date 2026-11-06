@@ -19,6 +19,19 @@ function firstName(p) {
 
 function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
   const ageH = cal && cal.fetched_at ? (now - new Date(cal.fetched_at)) / 3600000 : Infinity;
+  const booking = String(profileOf(settings).booking_url || '').trim();
+  if (/^https?:\/\/\S+$/.test(booking) && !booking.includes('...')) {
+    // With a booking page they pick an open time themselves: no back-and-forth.
+    const prof = profileOf(settings);
+    const name = firstName(p);
+    const body = [
+      name ? `Hi ${name},` : 'Hi,',
+      `Thanks so much for getting back to me, I really appreciate you making time. You can grab whatever time works best for you here: ${booking}\n\nIf none of those work, just let me know a time that's easier and I'll make it work. Phone or Zoom, whichever you prefer.`,
+      `Really looking forward to hearing how ${shortName(p.name)} got started.`,
+      prof.first_name ? `Thanks,\n${prof.first_name}` : 'Thanks,',
+    ].join('\n\n');
+    return { body, slots: [], slot_text: [], booking_url: booking };
+  }
   if (!cal || !Array.isArray(cal.busy)) return { skip: "Your calendar hasn't been read yet" };
   if (ageH > 72) return { skip: "Your calendar is more than 3 days old; the 7:23am run may not be reading it" };
   const slots = callOptions(cal.busy, { now });
