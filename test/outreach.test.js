@@ -815,6 +815,9 @@ test("open times come from Soham's calendar, skip busy blocks, and the reply doe
   assert.match(r.slot_text.join(' '), /at (6|6:30|7)pm/);
   assert.doesNotMatch(r.body, /Connect\.AI/);
   assert.match(r.body, /Levareit got started/);
+  assert.doesNotMatch(r.body, /my number is/);
+  const withPhone = meetingReply({ name: 'Levareit LLC', body: 'Hi Rene,' }, { busy, fetched_at: now.toISOString() }, { now, settings: { ...SOHAM, phone: '860-555-0100' } });
+  assert.match(withPhone.body, /If it's easier to just call, my number is 860-555-0100\./);
   assert.ok(meetingReply({ name: 'X', body: 'Hi X,' }, { busy, fetched_at: '2026-10-01T00:00:00Z' }, { now }).skip);
 });
 

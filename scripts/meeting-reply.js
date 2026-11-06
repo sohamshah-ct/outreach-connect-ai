@@ -23,13 +23,15 @@ function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
   if (ageH > 72) return { skip: "Your calendar is more than 3 days old; the 7:23am run may not be reading it" };
   const slots = callOptions(cal.busy, { now });
   if (slots.length < 2) return { skip: 'Not enough open times in the next two weeks' };
-  const me = profileOf(settings).first_name;
+  const prof = profileOf(settings);
+  const me = prof.first_name;
+  const phone = String(prof.phone || '').trim();
   const name = firstName(p);
   const biz = shortName(p.name);
   const texts = slots.map(slotText);
   const body = [
     name ? `Hi ${name},` : 'Hi,',
-    `Thanks so much for getting back to me, I really appreciate you making time. Would any of these work for you?\n\n${texts.map(t => `- ${t}`).join('\n')}\n\nIf another time is easier, just let me know what works better for you. Teams, Zoom or phone all work for me, and I'm happy to send the invite.`,
+    `Thanks so much for getting back to me, I really appreciate you making time. Would any of these work for you?\n\n${texts.map(t => `- ${t}`).join('\n')}\n\nIf another time is easier, just let me know what works better for you. Teams, Zoom or phone all work for me, and I'm happy to send the invite.${phone ? ` If it's easier to just call, my number is ${phone}.` : ''}`,
     `Really looking forward to hearing how ${biz} got started.`,
     me ? `Thanks,\n${me}` : 'Thanks,',
   ].join('\n\n');
