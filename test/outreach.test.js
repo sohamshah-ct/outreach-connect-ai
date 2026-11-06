@@ -699,6 +699,9 @@ test('follow-ups: one, in the same thread, after 4 business days with no reply',
   const f = plan[0];
   assert.equal(f.subject, 'Re: UConn student question about Buzz Beads');
   assert.equal(f.thread_id, 't');
+  // replies to the first email (its Gmail id is the thread id) so other mail apps thread it
+  assert.equal(f.reply_to_message_id, 't');
+  assert.equal(planFollowups([{ ...docs[0], message_id: 'm1' }], { now, settings: mergeSettings(SOHAM) })[0].reply_to_message_id, 'm1');
   assert.match(f.body, /^Hi Karen,\n\nJust bumping this/);
   assert.doesNotMatch(f.body, /;/);
   assert.equal(f.after.status, 'followed_up');

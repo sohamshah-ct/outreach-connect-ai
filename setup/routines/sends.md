@@ -28,7 +28,7 @@ PART A: approved first emails (up to first_quota)
 PART B: automatic follow-ups (up to followup_quota; one per business, after 4 business days with no reply)
 7. Search Gmail once for replies from the addresses in plan.json (from:(a OR b ...) newer_than:30d -in:sent) and for bounces (from:(mailer-daemon OR postmaster) newer_than:30d). Skip anyone who wrote back or bounced (mark bounced ones "bounced"). For each remaining entry, oldest first:
    a. Claim: ArtifactData update {status: "sending"} with if_version; skip if refused and it's no longer "sent".
-   b. Gmail send_message: to, cc, subject, body AND htmlBody from the plan, replyThreadId = thread_id.
+   b. Gmail send_message: to, cc, subject, body AND htmlBody from the plan, replyToMessageId = reply_to_message_id (not replyThreadId: replying to the first email is what makes Outlook and other mail apps show it under the original, with the original quoted below).
    c. ArtifactData update with file_path = after_file, pinned to the claim's version. If the send failed, set status back to "sent" with a log line.
    d. If "crm" is set: crm_log_touchpoint {org: crm.org, kind: "email", body: crm.body} and crm_update_org {org: crm.org, ...crm.update}.
 

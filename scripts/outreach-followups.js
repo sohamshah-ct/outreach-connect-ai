@@ -5,7 +5,7 @@
 // (settings.school_email) is cc'd when it's set.
 //
 //   node scripts/outreach-followups.js --docs <dir of prospect JSON files> --out <dir> [--days 4] [--max 20] [--settings <settings JSON file>]
-//     → writes <out>/plan.json: [{ id, to, cc, subject, body, htmlBody, thread_id, after_file, crm }]
+//     → writes <out>/plan.json: [{ id, to, cc, subject, body, htmlBody, thread_id, reply_to_message_id, after_file, crm }]
 //       and <out>/after/<id>.json, the desk update to write once the email is sent.
 
 const fs = require('fs');
@@ -37,7 +37,12 @@ function planFollowups(docs, { days = 4, max = 20, now = new Date(), settings = 
       log: [...(p.log || []), { at, what: `Followed up with ${p.email} (no reply after ${days} business days)` }].slice(-40),
     };
     return {
-      id: p.id, to: [p.email], cc, subject, ...mailBodies(body, settings), thread_id: p.thread_id, after,
+      // Send it as a reply to the first email (Gmail send_message replyToMessageId),
+      // not just into the thread: that adds the In-Reply-To/References headers, so
+      // Outlook and other mail apps group it with the original, and Gmail quotes
+      // the original underneath. The first message's Gmail id is its thread id.
+      id: p.id, to: [p.email], cc, subject, ...mailBodies(body, settings), thread_id: p.thread_id,
+      reply_to_message_id: p.message_id || p.thread_id, after,
       crm: p.crm_org_id ? { org: p.crm_org_id, body: `Follow-up email sent to ${p.email}.\n\n${body}`,
         update: { next_step: 'No reply to the follow-up yet: try calling or stopping by', next_step_due: addDays(now, 7), notes: crmNotesNow({ ...p, ...after }, settings) } } : null,
     };

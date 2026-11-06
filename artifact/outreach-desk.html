@@ -862,7 +862,7 @@ async function sendFollowup(p) {
   const body = `${greet}\n\nJust bumping this in case it got buried. If you have 10 minutes sometime in the next couple of weeks, I'd still really like to hear how you got started.\n\nIf now isn't a good time, no worries at all.\n\nThanks,\n${settings().sender_name.split(' ')[0]}`;
   const subject = /^re:/i.test(p.subject || '') ? p.subject : `Re: ${p.subject || p.name}`;
   const trackId = trackingUrl() ? newTrackId(p, 'f') : null;
-  await S.mcp.callTool(GMAIL, 'send_message', { to: [p.email], ...ccList(), subject, ...mailBodies(body, trackId), ...(p.thread_id ? { replyThreadId: p.thread_id } : {}) });
+  await S.mcp.callTool(GMAIL, 'send_message', { to: [p.email], ...ccList(), subject, ...mailBodies(body, trackId), ...((p.message_id || p.thread_id) ? { replyToMessageId: p.message_id || p.thread_id } : {}) });
   const fAt = nowIso();
   await patch(p.id, { status: 'followed_up', followup_at: fAt, followup_body: body, ...trackedPatch(p, trackId, 'follow-up', fAt) }, `Followed up with ${p.email}`);
   if (p.crm_org_id) logToCrm(p, 'email', `Follow-up email sent to ${p.email}.\n\n${body}`, { update: { notes: crmNotesNow({ ...p, status: 'followed_up', followup_at: fAt }) } }).catch(() => {});
