@@ -836,6 +836,21 @@ test('with a desk link, the reply-ready email has a Send it button that opens th
   assert.match(n.body, /tap Send it: https:\/\/claude\.ai\/artifact\/abc#send-levareit-ellington/);
 });
 
+test('a reply from a different address in the same Gmail thread still counts', () => {
+  const { planReplies } = require('../lib/outreach/replies');
+  const p = { id: 'wet-pets', name: 'Wet Pets', email: 'donscleanaquarium@gmail.com', contact_name: 'Donald Allen', status: 'sent', thread_id: 't9', log: [] };
+  const threads = [{ id: 't9', messages: [
+    { id: 'm1', sender: 'shahsoham689@gmail.com', labelIds: ['SENT'], snippet: 'Hi Wet Pets team' },
+    { id: 'm2', sender: 'don@wetpetsemporium.com', labelIds: ['INBOX'], snippet: 'Give me a call today' },
+  ] }];
+  const { updates, notify } = planReplies([p], threads, '2026-11-06T16:00:00Z', SOHAM);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].fields ? updates[0].fields.status : (updates[0].data || updates[0]).status, 'replied');
+  assert.equal(notify.length, 1);
+  // The student's own messages in the thread never count as a reply.
+  assert.equal(planReplies([p], [{ id: 't9', messages: [threads[0].messages[0]] }], '2026-11-06T16:00:00Z', SOHAM).updates.length, 0);
+});
+
 // ---------- each student's own profile ----------
 
 const MAYA = {
