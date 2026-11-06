@@ -29,7 +29,10 @@ function dueFollowups(docs, { days = 4, now = new Date() } = {}) {
 
 function planFollowups(docs, { days = 4, max = 20, now = new Date(), settings = mergeSettings({}) } = {}) {
   const at = now.toISOString();
-  const cc = profileOf(settings).school_email ? [profileOf(settings).school_email] : [];
+  // cc_email decides who's cc'd on outgoing mail ('' = nobody); unset falls back to the school address.
+  const prof = profileOf(settings);
+  const ccAddr = String(prof.cc_email ?? prof.school_email ?? '').trim();
+  const cc = ccAddr ? [ccAddr] : [];
   return dueFollowups(docs, { days, now }).slice(0, max).map(p => {
     const { subject, body } = composeFollowup(p, settings, p.subject);
     const after = {
