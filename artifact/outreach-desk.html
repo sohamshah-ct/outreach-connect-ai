@@ -2580,7 +2580,7 @@ render();
       if (!deepLinked) {
         deepLinked = true;
         const m = /^#send-([a-z0-9-]+)$/.exec(location.hash || '');
-        if (m && S.prospects.some(p => p.id === m[1])) { S.tab = 'replies'; render(); openDrawer(m[1]); setTimeout(() => { const b = document.querySelector('#drawerBody [data-act="send-reply"]'); if (b) { b.scrollIntoView({ block: 'center' }); b.focus({ preventScroll: true }); } }, 300); }
+        if (m && S.prospects.some(p => p.id === m[1])) { S.tab = 'replies'; render(); openDrawer(m[1]); setTimeout(() => { const b = document.querySelector('#drawerBody [data-gdraft], #drawerBody [data-act="send-reply"]'); if (b) { b.scrollIntoView({ block: 'center' }); b.focus({ preventScroll: true }); } }, 300); }
       }
       if (S.readOnly) return;
       watchReplies(); syncLeads(); autoSend(); migrateDrafts(); stripLinkedIn();
