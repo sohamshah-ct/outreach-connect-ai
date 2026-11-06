@@ -24,12 +24,9 @@ STEP 3, new replies from businesses (step 0 threads not from {{FIRST}}):
      If they gave a phone number and asked {{FIRST}} to call: don't draft a reply; send the plan's notify email (with the PDF) saying they asked for a call, with the number. Otherwise, if they're agreeing to talk or asking when: ArtifactData get collection "meta", doc_id "calendar", save its data to ./cal.json (if it doesn't exist, write {} there); run node scripts/meeting-reply.js ./rc/prospects/<id>.json ./cal.json ./settings.json.
      If it returns a body: Gmail create_draft {to: [their email], cc: [{{CC}}] (leave out if empty), subject: "Re: <original subject>", body, replyToMessageId: their latest message id}. Re-get the doc, set reply_draft = body, save the doc JSON with that field to ./doc.json and the message text to ./msg.txt and run node scripts/reply-notice.js ./doc.json ./msg.txt <draft id> <draft viewUrl> "" ./settings.json. Send its email with Gmail send_message {to, subject, body, htmlBody, attachments: [the PDF]}. ArtifactData update the doc (pinned) with reply_draft, reply_draft_id, reply_draft_url, reply_draft_slots = slot_text, reply_draft_at now, reply_approve_code = code, reply_notice_thread_id = the threadId Gmail returned for that notice.
      If meeting-reply returns skip, or they asked a question / said "not now" / referred someone: send the plan's notify email instead (body, htmlBody and the PDF), with one added sentence on why there's no ready reply.
-   - TEXT: TEXT_TO = {{TEXT_TO}} (empty means skip this). For every reply that isn't a "no thanks", Gmail send_message to [TEXT_TO] (the carrier turns it into a text), subject "Outreach: <first name> wrote back", plain body only (no htmlBody), attachments: [the PDF], up to 6 short lines:
-       <Full name> wants a call   (or "wrote back" / "has a question", whichever fits)
-       <Business>, <town> (<what they do in a few words, and since when if known>)
-       Said: "<their key sentence, under 120 characters>"
-       Call: <their number>   (or "No number. Reply draft is in your Gmail.")
-       Replied <time, Eastern, like 1:54pm>
+   - TEXT: TEXT_TO = {{TEXT_TO}} (empty means skip this). For every reply that isn't a "no thanks", Gmail send_message to [TEXT_TO] (the carrier turns it into a text) with NO subject (a subject shows up as its own bubble), plain body only (no htmlBody), attachments: [the PDF]. The body is exactly two lines:
+       <Full name> (<Business>, <town>) wants a call: <their number>   (or "wrote back:" / "has a question:" and "no number, reply draft is in your Gmail")
+       "<their key sentence, under 100 characters>"
      Plain words, no links, never the calendar's event names.
    - Do the entry's crm step if it has one: crm_log_touchpoint {org: crm.org, kind: "email", body: crm.body} and crm_update_org {org: crm.org, ...crm.update}. If they asked for a call, set next_step "Call <name> at <number>" due today.
   Never send anything to a business without {{FIRST}}'s approval (STEP 2). Drafts only.
