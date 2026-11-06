@@ -954,3 +954,14 @@ test('an empty background (or an empty profile) is skipped cleanly', () => {
     assert.match(empty.subject, /UConn student/);
   }
 });
+
+test('call brief: sourced facts, no "Contact"/"Found by" lines, and a website question only when there is none', () => {
+  const { factLines, questions } = require('../scripts/call-brief');
+  const p = { name: 'Copper Beech Carpentry LLC', crm_notes: 'What they do: Finish carpentry (source: https://data.ct.gov/x)\nContact: Oliver (source: https://data.ct.gov/y)\nFound by research (fit 55/100).' };
+  const f = factLines(p);
+  assert.equal(f.length, 1);
+  assert.equal(f[0].src, 'https://data.ct.gov/x');
+  assert.match(questions(p)[0], /Copper Beech Carpentry\?/);
+  assert.ok(questions(p).some(q => /without a website/.test(q)));
+  assert.ok(!questions({ ...p, website: 'https://x.com' }).some(q => /without a website/.test(q)));
+});
