@@ -86,6 +86,7 @@ Fill in each template in `setup/routines/` by replacing these placeholders:
 | `{{CC}}` | `"<school_email>"` (quoted), or nothing if it's empty |
 | `{{NOTIFY}}` | `"<school_email>", "<sender_email>"` (quoted, comma separated) |
 | `{{ICS_URL}}` | `calendar_ics_url` |
+| `{{TEXT_TO}}` | the address that texts their phone, or `""` for none. Ask the student once: "Want a text (with a one-page brief on the business) when an owner writes back? If so, what's your cell number and carrier?" Verizon: `<10 digits>@vzwpix.com`, T-Mobile: `<10 digits>@tmomail.net`, others: look up their carrier's MMS email gateway. AT&T no longer has one, so use `""`. Never put this number anywhere else. |
 | `{{ICS_URL_SET}}` | `true` if `calendar_ics_url` is set, otherwise `false` (and delete step 6 of presend.md) |
 
 Then create four routines with `create_trigger`. For every one: `create_new_session_on_fire: true`, `environment_id: ENV_ID`, `connectors: ["Gmail", "Connect AI"]`, and `initiation: "human_request"`, because the student asked for these at sign-up. To spread out the class's runs, pick a minute M at random between 2 and 28 and use it as below.
@@ -112,7 +113,7 @@ Finish with a short message in plain words:
 - Their desk link (DESK_URL). Open it once and allow Gmail, Connect AI and Claude when it asks.
 - The first research run is going now. Businesses show up under **Review** over the next half hour, each with a draft.
 - Nothing goes out until they approve drafts (or, from tomorrow, until the morning check proves each one against the business's own website). Approved emails go out between about 8am and 3pm on weekdays, a few minutes apart, from their Gmail, copying their UConn address.
-- When an owner writes back, they get an email with a ready reply and an "Approve and send" button.
+- When an owner writes back, they get an email with a ready reply, a "Send it" button and a one-page call brief PDF, plus a text if they gave their number.
 - The **Class board** tab shows who in the class is talking to which business.
 - Their usage: the research run and the hourly checks use their own Claude usage.
 
