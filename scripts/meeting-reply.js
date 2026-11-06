@@ -26,7 +26,7 @@ function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
     const name = firstName(p);
     const body = [
       name ? `Hi ${name},` : 'Hi,',
-      `Thanks so much for getting back to me, I really appreciate you making time. You can grab whatever time works best for you here: ${booking}\n\nIt sets up a Teams call, but if you'd rather I just call your phone, put your number in the booking notes. And if nothing there works, let me know a time that's easier and I'll make it work.`,
+      `Thanks so much for getting back to me, I really appreciate you making time. Just reply with a day and time that works for you and the best number to reach you, and I'll give you a call then.\n\nIf it's easier, you can also pick a time on my calendar here: ${booking}`,
       `Really looking forward to hearing how ${shortName(p.name)} got started.`,
       prof.first_name ? `Thanks,\n${prof.first_name}` : 'Thanks,',
     ].join('\n\n');
