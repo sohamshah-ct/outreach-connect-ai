@@ -827,6 +827,15 @@ test('the reply-ready email shows the draft and carries an approve link tied to 
   assert.deepEqual(n.to, ['soham.shah@uconn.edu', 'shahsoham689@gmail.com']);
 });
 
+test('with a desk link, the reply-ready email has a Send it button that opens the desk on that reply', () => {
+  const { replyNotice } = require('../scripts/reply-notice');
+  const p = { id: 'levareit-ellington', name: 'Levareit LLC', contact_name: 'Rene Burce', email: 'r@y.com', reply_draft: 'Hi Rene' };
+  const n = replyNotice(p, 'Sure', { draftUrl: 'https://mail.google.com/x', code: 'A7K2Q9', settings: { ...SOHAM, desk_url: 'https://claude.ai/artifact/abc' } });
+  assert.match(n.htmlBody, /href="https:\/\/claude\.ai\/artifact\/abc#send-levareit-ellington"[^>]*>Send it</);
+  assert.doesNotMatch(n.htmlBody, /mailto:shahsoham689/);
+  assert.match(n.body, /tap Send it: https:\/\/claude\.ai\/artifact\/abc#send-levareit-ellington/);
+});
+
 // ---------- each student's own profile ----------
 
 const MAYA = {
