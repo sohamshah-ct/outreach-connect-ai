@@ -2625,6 +2625,10 @@ let lastCrmView = '', lastBoardView = '';
 // saved and logged to the class CRM, emailed to the student, and a thank-you
 // is offered as a Gmail draft.
 const SES_KEY = 'outreach-live-session';
+// claude.ai doesn't give pages like this one the mic, so recording runs on a small page of its own
+// (recorder/index.html in the public repo) and sends the transcript back here.
+const RECORDER_URL = 'https://raw.githack.com/sohamshah-ct/outreach-connect-ai/main/recorder/index.html';
+const DESK_SELF_URL = 'https://claude.ai/artifact/39nNz1ntqHVCoxepDhT1Mt';
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let SES = null;     // the open session, or null
@@ -2667,7 +2671,7 @@ function openSession(target) {
     // A session already under way (on this device) is never thrown away by accident: open it instead.
     if (saved && saved.started && !(saved.target.pid && saved.target.pid === target.pid) && !(saved.target.business === target.business)) { SES = { ...saved, rec: null, listening: false, interim: '', runningSince: saved.runningSince ? Date.now() : null }; toast(`You still have a session open with ${saved.target.business}. End or discard it first.`); }
     else if (saved && saved.started) { SES = { ...saved, rec: null, listening: false, interim: '', runningSince: saved.runningSince ? Date.now() : null }; }
-    else SES = { target, kind: 'call', consent: false, finals: [], notes: '', elapsedMs: 0, runningSince: null, started: false, startedAt: null, mic: null, out: null, done: false };
+    else SES = { sid: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), target, kind: 'call', consent: false, finals: [], notes: '', elapsedMs: 0, runningSince: null, started: false, startedAt: null, mic: null, out: null, done: false };
   } else SES = { picking: true };
   $('#sess').classList.add('on');
   document.documentElement.style.overflow = 'hidden';
@@ -2713,7 +2717,10 @@ function renderSes() {
   const t = SES.target;
   if (SES.out) { renderSesOut(root); return; }
   const transcript = SES.finals.join(' ');
-  const micNote = SES.mic === 'blocked'
+  const micNote = SES.external
+    ? `<div class="sess-help">Recording in the other tab. Keep it open; tap End there when you're done and the summary shows up here by itself. What's said also shows up below as it's written down.</div>`
+    : `<div class="sess-help">Tap Record once they've said OK. It opens the recorder in a new tab (claude.ai doesn't let this page use the mic itself); when you tap End there, everything comes back here and gets done for you.</div>`;
+  const micNoteOld = SES.mic === 'blocked'
     ? `<div class="sess-help warn">claude.ai doesn't let this page use your mic directly, so use your device's dictation in the notes box instead. It types what it hears and works the same: on Windows, click in Your notes and press Windows key + H; on a Mac, press Fn twice; on a phone, tap the box and press the mic on the keyboard. Put a phone call on speaker so it hears both of you. Zoom or Teams transcripts can be pasted in at the end.</div>`
     : SES.mic === 'unsupported'
       ? `<div class="sess-help warn">This browser can't turn speech into text. Chrome, Edge or Safari can. Notes typed or dictated with your keyboard's mic work the same.</div>`
@@ -2723,20 +2730,18 @@ function renderSes() {
       <div class="who">${[t.name ? esc(t.name) : null, t.phone ? `<a href="tel:${esc(String(t.phone).replace(/[^0-9+]/g, ''))}">${esc(t.phone)}</a>` : null].filter(Boolean).join(' · ')}</div></div>
       <button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
     <div class="sess-bar"><span class="sess-clock" id="sessClock">${fmtClock(sesElapsed())}</span>
-      <span class="sess-pill ${SES.listening ? 'live' : ''}" id="sessPill"><i></i>${SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}</span>
+      <span class="sess-pill ${SES.listening || SES.external ? 'live' : ''}" id="sessPill"><i></i>${SES.external ? 'Recording in the other tab' : SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}</span>
       <span class="sess-kind" role="group" aria-label="Call or meeting"><button data-ses-kind="call" aria-pressed="${SES.kind === 'call'}">Call</button><button data-ses-kind="meeting" aria-pressed="${SES.kind === 'meeting'}">Meeting</button></span></div>
     <label class="sess-consent ${SES.consent ? 'ok' : ''}"><input type="checkbox" id="sessConsent" ${SES.consent ? 'checked' : ''}> <span>${esc(t.name ? t.name.split(' ')[0] : 'They')} said it's OK to record. <span style="color:var(--muted)">(Connecticut requires their OK before recording a phone call. Ask first.)</span></span></label>
     ${micNote}
     <div class="sess-main">
       <div class="sess-box"><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
-        <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : '<span class="empty">Press Start listening once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>'}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
+        <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : '<span class="empty">Tap Record once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>'}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
       <div class="sess-box"><div class="eyebrow"><span>Your notes</span></div>
         <textarea class="sess-notes" id="sessNotes" placeholder="Anything worth remembering: team size, what eats their time, what they asked you, what you promised to send…">${esc(SES.notes)}</textarea></div>
     </div>
     <div class="sess-actions">
-      ${SES.listening
-        ? '<button class="btn" data-ses="pause">Pause</button>'
-        : `<button class="btn rec" data-ses="listen" ${SES.mic === 'blocked' || SES.mic === 'unsupported' ? 'disabled' : ''}>● ${SES.started && SES.finals.length ? 'Keep listening' : 'Start listening'}</button>`}
+      <button class="btn rec" data-ses="record">● ${SES.external ? 'Reopen the recorder' : 'Record'}</button>
       <button class="btn end" data-ses="end">${SES.ending ? 'Tap again to end and summarize' : `End ${SES.kind === 'meeting' ? 'meeting' : 'call'}`}</button>
     </div>
     ${SES.started ? `<button class="btn ghost sm" data-ses="discard" style="align-self:center">${SES.discarding ? 'Tap again to throw this session away' : 'Discard this session'}</button>` : ''}`;
@@ -2939,6 +2944,56 @@ function renderSesOut(root) {
     </div>` : ''}`;
 }
 
+function openRecorder() {
+  if (!SES.consent) { toast('Tick the box once they\'ve said it\'s OK to record.', { err: true }); return; }
+  if (!SES.sid) SES.sid = 's' + Date.now().toString(36);
+  const t = SES.target;
+  const tB64 = btoa(unescape(encodeURIComponent(JSON.stringify(t))));
+  const q = new URLSearchParams({ sid: SES.sid, biz: t.business, who: t.name || '', kind: SES.kind, consent: '1', go: '1', ret: settings().desk_url || DESK_SELF_URL, mail: settings().sender_email || '', t: tB64 });
+  const w = window.open(`${RECORDER_URL}?${q}`, '_blank');
+  if (!w) { toast('Your browser blocked the new tab. Allow pop-ups for claude.ai and tap Record again.', { err: true }); return; }
+  SES.external = true; sesBegin(); renderSes(); sesSave();
+}
+// The recorder tab sends what it writes down as it goes, then the whole thing when you tap End there.
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || d.app !== 'outreach-rec' || !d.sid) return;
+  if (!SES || SES.sid !== d.sid) { const sv = sesLoad(); if (sv && sv.sid === d.sid) { openSession(null); } else return; }
+  if (d.type === 'live') { SES.finals = d.transcript ? [d.transcript] : []; if (typeof d.notes === 'string' && d.notes) SES.recNotes = d.notes; paintLive(); sesSave(); return; }
+  if (d.type === 'done') {
+    try { e.source && e.source.postMessage({ app: 'outreach-rec', type: 'ack', sid: d.sid }, '*'); } catch (err) { /* tab closed */ }
+    if (SES.out) return;
+    sesImport(d);
+  }
+});
+function sesImport(d) {
+  SES.finals = d.transcript ? [d.transcript] : [];
+  SES.notes = [SES.notes, d.notes].map(x => String(x || '').trim()).filter(Boolean).join('\n');
+  SES.elapsedMs = Number(d.ms) || SES.elapsedMs; SES.runningSince = null;
+  SES.startedAt = SES.startedAt || d.startedAt; SES.started = true; SES.external = false;
+  if (d.kind) SES.kind = d.kind; if (d.consent) SES.consent = true;
+  sesSave();
+  endSession();
+}
+// Opened from the recorder as <desk>#ses=…: the whole session rides in the link.
+async function sesFromHash() {
+  const m = /#ses=([zj])([A-Za-z0-9_-]+)/.exec(location.hash || '');
+  if (!m) return;
+  try {
+    const b64 = m[2].replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64 + '==='.slice((b64.length + 3) % 4));
+    let json;
+    if (m[1] === 'z') { const bytes = Uint8Array.from(bin, c => c.charCodeAt(0)); json = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text(); }
+    else json = decodeURIComponent(escape(bin));
+    const d = JSON.parse(json);
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* not allowed here */ }
+    const sv = sesLoad();
+    if (sv && sv.sid === d.sid) openSession(null);
+    else { SES = null; openSession(d.target || { pid: null, name: '', business: 'Session', email: '', phone: '', crm_org_id: null, thread_id: null, subject: '', town: '' }); SES.sid = d.sid; }
+    if (!SES.out) sesImport(d);
+  } catch (e) { toast('Couldn\'t read the session from that link.', { err: true }); }
+}
+
 // Clicks inside the session screen, the round button, and "Start session" on a business.
 document.addEventListener('click', e => {
   const s = e.target.closest('[data-session]');
@@ -2956,6 +3011,7 @@ document.addEventListener('click', e => {
   else if (act === 'other') { const biz = ($('#sessBiz').value || '').trim(); if (!biz) { toast('Type the business name.', { err: true }); return; } const who = ($('#sessWho').value || '').trim(); const org = crmMatch(biz); SES = null; sesForget(); openSession({ pid: null, name: who, business: biz, email: '', phone: '', crm_org_id: org ? org.id : null, thread_id: null, subject: '', town: org ? org.city || '' : '' }); }
   else if (act === 'discard') { if (!SES.discarding) { SES.discarding = true; renderSes(); setTimeout(() => { if (SES) { SES.discarding = false; renderSes(); } }, 4000); return; } stopListening(); SES.done = true; closeSession(); toast('Session thrown away.'); }
   else if (act === 'listen') startListening();
+  else if (act === 'record') openRecorder();
   else if (act === 'pause') { stopListening(); if (SES.runningSince) { SES.elapsedMs += Date.now() - SES.runningSince; SES.runningSince = null; } renderSes(); sesSave(); }
   else if (act === 'end') { if (!SES.ending) { SES.ending = true; renderSes(); setTimeout(() => { if (SES && SES.ending && !SES.out) { SES.ending = false; renderSes(); } }, 4000); return; } SES.ending = false; endSession(); }
   else if (act === 'retry') { SES.out = null; endSession(); }
@@ -2991,6 +3047,7 @@ render();
         deepLinked = true;
         const m = /^#send-([a-z0-9-]+)$/.exec(location.hash || '');
         if (m && S.prospects.some(p => p.id === m[1])) { S.tab = 'replies'; render(); openDrawer(m[1]); setTimeout(() => { const b = document.querySelector('#drawerBody [data-gdraft], #drawerBody [data-act="send-reply"]'); if (b) { b.scrollIntoView({ block: 'center' }); b.focus({ preventScroll: true }); } }, 300); }
+        if (!S.readOnly) sesFromHash();
       }
       if (S.readOnly) return;
       watchReplies(); syncLeads(); autoSend(); migrateDrafts(); stripLinkedIn();

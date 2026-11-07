@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Session recorder</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--paper:#F6F9FC;--wash:#EAF0F7;--line:#CFDAE7;--ink:#0A1730;--ink-2:#2D3E5C;--muted:#5D6E89;--red:#E2493B;--red-soft:#FCE6E2;--ok:#17794A;--ok-soft:#DFF3E8;--warn:#8A6206;--warn-soft:#FBEFCF;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--paper:#081329;--wash:#0F1E3A;--line:#203559;--ink:#EEF5FF;--ink-2:#C4D3EA;--muted:#8EA2C2;--red:#FF7A66;--red-soft:#3A1A1C;--ok:#6FDCA0;--ok-soft:#0F3326;--warn:#F2C766;--warn-soft:#3A2E10;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));min-height:100vh;display:flex;flex-direction:column;gap:14px}
+.eyebrow{font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{margin:4px 0 0;font-size:clamp(26px,6vw,36px);line-height:1.1;letter-spacing:-.02em}
+.who{color:var(--muted)}
+.bar{display:flex;align-items:center;gap:12px;background:var(--wash);border-radius:16px;padding:14px 16px}
+.clock{font:600 34px/1 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:7px;font:600 11px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;padding:7px 12px;border-radius:999px;background:var(--line);color:var(--ink-2)}
+.pill i{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.pill.live{background:var(--red-soft);color:var(--red)}
+.pill.live i{background:var(--red);animation:p 1.4s infinite}
+@keyframes p{50%{opacity:.25}}
+.consent{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:14px;cursor:pointer}
+.consent input{width:22px;height:22px;accent-color:var(--red);flex-shrink:0;margin-top:1px}
+.consent.ok{border-color:var(--ok);background:var(--ok-soft)}
+.consent small{color:var(--muted)}
+.transcript{flex:1;min-height:220px;border:1px solid var(--line);border-radius:16px;padding:14px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:17px;line-height:1.6}
+.transcript .interim{color:var(--muted)}
+.transcript .empty{color:var(--muted);font-size:15px}
+textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;font-size:16px;background:transparent;color:var(--ink);resize:vertical}
+.note{font-size:14px;color:var(--muted)}
+.note.warn{color:var(--warn);background:var(--warn-soft);border-radius:12px;padding:10px 12px}
+.note.ok{color:var(--ok);background:var(--ok-soft);border-radius:12px;padding:10px 12px}
+.actions{display:flex;gap:10px;position:sticky;bottom:0;background:var(--paper);padding-top:8px}
+button{font:600 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;border-radius:999px;padding:18px 20px;cursor:pointer;flex:1;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+button.rec{background:var(--red);border-color:var(--red);color:#fff}
+button.end{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+button:disabled{opacity:.45;cursor:not-allowed}
+a{color:inherit}
+</style>
+</head>
+<body>
+<main>
+  <div><div class="eyebrow" id="kind">Call</div><h1 id="biz">Session</h1><div class="who" id="who"></div></div>
+  <div class="bar"><span class="clock" id="clock">0:00</span><span class="pill" id="pill"><i></i><span>Not started</span></span></div>
+  <label class="consent" id="consentBox"><input type="checkbox" id="consent"><span><b id="okWho">They</b> said it's OK to record. <small>Connecticut requires their OK before recording a phone call. Ask first.</small></span></label>
+  <div class="note" id="msg">Tap Record once they've said OK. Keep this tab open. On a phone call, put it on speaker so the mic hears both of you. Only text is kept, never audio.</div>
+  <div class="transcript" id="live"><span class="empty">What's said shows up here.</span></div>
+  <textarea id="notes" placeholder="Your notes (optional): anything the transcript might miss"></textarea>
+  <div class="actions"><button class="rec" id="rec">● Record</button><button class="end" id="end" disabled>End and send to my desk</button></div>
+</main>
+<script>
+(() => {
+'use strict';
+const qs = new URLSearchParams(location.search);
+const sid = qs.get('sid') || ('s' + Date.now());
+const ret = qs.get('ret') || '';
+const biz = qs.get('biz') || 'Session';
+const person = qs.get('who') || '';
+const kind = qs.get('kind') === 'meeting' ? 'meeting' : 'call';
+const target = (() => { try { return JSON.parse(decodeURIComponent(escape(atob(qs.get('t') || '')))); } catch (e) { return null; } })();
+const notify = qs.get('mail') || '';
+const KEY = 'outreach-rec-' + sid;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+let st = { finals: [], interim: '', notes: '', elapsed: 0, since: null, startedAt: null, consent: false, sent: false };
+try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && !saved.sent) st = { ...st, ...saved, interim: '', since: null }; } catch (e) {}
+let rec = null, listening = false, wake = null, timer = null;
+if (qs.get('consent') === '1') st.consent = true;
+
+$('biz').textContent = biz;
+$('who').textContent = person;
+$('okWho').textContent = person ? person.split(' ')[0] : 'They';
+$('kind').textContent = kind === 'meeting' ? 'Meeting' : 'Call';
+$('consent').checked = !!st.consent;
+$('consentBox').classList.toggle('ok', !!st.consent);
+$('notes').value = st.notes || '';
+document.title = `Recording · ${biz}`;
+
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ ...st, interim: '', since: null, elapsed: elapsed() })); } catch (e) {} };
+const elapsed = () => st.elapsed + (st.since ? Date.now() - st.since : 0);
+const fmt = ms => { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0'); };
+const transcript = () => st.finals.join(' ').trim();
+function paint() {
+  const t = transcript();
+  $('live').innerHTML = (t ? esc(t) : '') + (st.interim ? ` <span class="interim">${esc(st.interim)}</span>` : '') || '<span class="empty">What\'s said shows up here.</span>';
+  $('live').scrollTop = $('live').scrollHeight;
+  $('pill').className = 'pill' + (listening ? ' live' : '');
+  $('pill').innerHTML = `<i></i><span>${listening ? 'Recording' : st.startedAt ? 'Paused' : 'Not started'}</span>`;
+  $('rec').textContent = listening ? 'Pause' : (st.startedAt ? '● Keep recording' : '● Record');
+  $('rec').className = listening ? '' : 'rec';
+  $('end').disabled = !(t || $('notes').value.trim()) || st.sent;
+  $('clock').textContent = fmt(elapsed());
+}
+
+// Live copy back to the desk tab, if it opened this one.
+let lastLive = 0;
+function sendLive() {
+  if (!window.opener || Date.now() - lastLive < 1500) return;
+  lastLive = Date.now();
+  try { window.opener.postMessage({ app: 'outreach-rec', type: 'live', sid, transcript: transcript(), notes: $('notes').value, ms: elapsed() }, '*'); } catch (e) {}
+}
+
+function msg(text, cls) { $('msg').className = 'note' + (cls ? ' ' + cls : ''); $('msg').innerHTML = text; }
+
+async function start() {
+  if (!st.consent) { msg('Tick the box once they\'ve said it\'s OK to record.', 'warn'); return; }
+  if (!SR) { msg('This browser can\'t turn speech into text. Open this page in Chrome, Edge or Safari.', 'warn'); return; }
+  const r = new SR();
+  r.continuous = !IOS; r.interimResults = true; r.lang = 'en-US';
+  r.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) { const tx = String(res[0].transcript || '').trim(); if (tx && st.finals[st.finals.length - 1] !== tx) st.finals.push(tx); }
+      else interim += res[0].transcript;
+    }
+    st.interim = interim; paint(); save(); sendLive();
+  };
+  r.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { listening = false; msg('The mic is blocked. Allow the microphone for this page (the icon in the address bar, or Settings → Safari → Microphone on iPhone) and tap Record again.', 'warn'); paint(); }
+    if (e.error === 'audio-capture') { listening = false; msg('No microphone found, or another app (like an active phone call on this phone) is using it.', 'warn'); paint(); }
+  };
+  r.onend = () => { if (listening && rec === r) setTimeout(() => { try { r.start(); } catch (err) {} }, 150); };
+  rec = r; listening = true;
+  if (!st.startedAt) st.startedAt = new Date().toISOString();
+  st.since = Date.now();
+  try { r.start(); } catch (e) { listening = false; }
+  if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { wake = w; }).catch(() => {});
+  clearInterval(timer); timer = setInterval(() => { $('clock').textContent = fmt(elapsed()); }, 1000);
+  msg('Recording. Keep this tab open until you tap End.');
+  paint(); save();
+}
+function pause() {
+  listening = false;
+  if (st.interim) { st.finals.push(st.interim.trim()); st.interim = ''; }
+  if (rec) { try { rec.stop(); } catch (e) {} rec = null; }
+  if (st.since) { st.elapsed += Date.now() - st.since; st.since = null; }
+  clearInterval(timer); if (wake) { wake.release().catch(() => {}); wake = null; }
+  paint(); save();
+}
+
+async function pack(obj) {
+  const json = JSON.stringify(obj);
+  if (window.CompressionStream) {
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return 'z' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  return 'j' + btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function end() {
+  pause();
+  const payload = { app: 'outreach-rec', type: 'done', sid, transcript: transcript(), notes: $('notes').value.trim(), ms: elapsed(), startedAt: st.startedAt, kind, consent: !!st.consent, target };
+  // 1) Straight back to the desk tab that opened this one.
+  let acked = false;
+  const onAck = e => { if (e.data && e.data.app === 'outreach-rec' && e.data.type === 'ack' && e.data.sid === sid) acked = true; };
+  window.addEventListener('message', onAck);
+  if (window.opener) { try { window.opener.postMessage(payload, '*'); } catch (e) {} }
+  for (let i = 0; i < 20 && !acked; i++) await new Promise(r => setTimeout(r, 100));
+  window.removeEventListener('message', onAck);
+  if (acked) {
+    st.sent = true; save();
+    msg('Sent to your desk ✓ It\'s writing the summary now. You can close this tab.', 'ok');
+    paint();
+    setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
+    return;
+  }
+  // 2) The desk tab isn't reachable (e.g. it was opened from the Claude app): reopen the desk with the session attached.
+  const packed = await pack(payload);
+  const mailBody = `${kind === 'meeting' ? 'Meeting' : 'Call'} with ${person || 'the owner'} at ${biz} (${fmt(payload.ms)})\n\nTranscript:\n${payload.transcript}\n\nMy notes:\n${payload.notes}`;
+  const mailHref = notify ? `mailto:${encodeURIComponent(notify)}?subject=${encodeURIComponent('Call notes: ' + (person || biz) + ' at ' + biz)}&body=${encodeURIComponent(mailBody.slice(0, 1800))}` : '';
+  st.sent = true; save(); paint();
+  msg(`${ret ? `<a href="${ret}#ses=${packed}"><b>Open your desk with this session</b></a>: it writes the summary and does the rest.` : ''}${mailHref ? `${ret ? '<br><br>Or ' : ''}<a href="${mailHref}">email it to yourself as call notes</a> and it's handled at the next check.` : ''}`, 'ok');
+  if (ret) location.href = `${ret}#ses=${packed}`;
+}
+
+$('consent').addEventListener('change', e => { st.consent = e.target.checked; $('consentBox').classList.toggle('ok', st.consent); if (!st.consent && listening) pause(); save(); paint(); });
+$('rec').addEventListener('click', () => listening ? pause() : start());
+$('end').addEventListener('click', () => { if ($('end').dataset.sure) end(); else { $('end').dataset.sure = '1'; $('end').textContent = 'Tap again to end'; setTimeout(() => { delete $('end').dataset.sure; $('end').textContent = 'End and send to my desk'; }, 4000); } });
+$('notes').addEventListener('input', () => { st.notes = $('notes').value; save(); paint(); sendLive(); });
+window.addEventListener('beforeunload', e => { if (listening) { e.preventDefault(); e.returnValue = ''; } });
+paint();
+if (qs.get('go') === '1' && st.consent && !st.startedAt) start();
+})();
+</script>
+</body>
+</html>
