@@ -491,6 +491,65 @@ footer{font-size:11px;}
 /* View-only (anyone but the student): same data, no buttons that change anything. */
 body.ro [data-act], body.ro [data-mark], body.ro [data-gdraft], body.ro #skipWeak, body.ro #sendQueue, body.ro .queue-bar, body.ro .confirm { display: none !important; }
 body.ro #drawerBody input, body.ro #drawerBody textarea, body.ro #reviewPane input, body.ro #reviewPane textarea { pointer-events: none; background: var(--wash, transparent); }
+/* ---------- live session (call or meeting) ---------- */
+.sess-fab{position:fixed; right:max(16px, env(safe-area-inset-right, 0px)); bottom:calc(18px + env(safe-area-inset-bottom, 0px)); z-index:45; display:inline-flex; align-items:center; gap:8px; border:none; border-radius:999px; padding:13px 20px; background:var(--ink); color:var(--paper); font:600 15px/1 var(--sans); box-shadow:0 12px 30px -10px rgba(0,0,0,.5); cursor:pointer;}
+.sess-fab i{width:10px; height:10px; border-radius:50%; background:var(--crimson);}
+.sess-fab:hover{filter:brightness(1.1);}
+body.ro .sess-fab, body.ro [data-session]{display:none !important;}
+.sess{position:fixed; inset:0; z-index:65; background:var(--paper); color:var(--ink); display:none; flex-direction:column; padding:calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); overflow:auto;}
+.sess.on{display:flex;}
+.sess-wrap{width:100%; max-width:860px; margin:0 auto; display:flex; flex-direction:column; gap:14px; flex:1; min-height:0;}
+.sess-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px;}
+.sess-top h2{font-size:clamp(24px,5vw,34px); font-weight:700; letter-spacing:-.02em; line-height:1.1;}
+.sess-top .who{font-size:15px; color:var(--muted); margin-top:4px;}
+.sess-top .who a{color:var(--info); text-decoration:none;}
+.sess-x{border:1px solid var(--line-strong); background:var(--paper); border-radius:999px; width:40px; height:40px; font-size:18px; cursor:pointer; color:var(--ink-2); flex-shrink:0;}
+.sess-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:var(--wash); border-radius:16px; padding:12px 14px;}
+.sess-clock{font-family:var(--mono); font-size:28px; font-weight:600; font-variant-numeric:tabular-nums; min-width:96px;}
+.sess-pill{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:6px 11px; border-radius:999px; background:var(--wash-2); color:var(--ink-2);}
+.sess-pill i{width:8px; height:8px; border-radius:50%; background:var(--muted);}
+.sess-pill.live{background:var(--crimson-soft); color:var(--crimson);}
+.sess-pill.live i{background:var(--crimson); animation:sesspulse 1.4s infinite;}
+@keyframes sesspulse{0%{opacity:1}50%{opacity:.25}100%{opacity:1}}
+@media (prefers-reduced-motion: reduce){ .sess-pill.live i{animation:none;} }
+.sess-kind{display:inline-flex; border:1px solid var(--line-strong); border-radius:999px; overflow:hidden; margin-left:auto;}
+.sess-kind button{border:none; background:var(--paper); padding:8px 14px; font:500 13px var(--sans); color:var(--ink-2); cursor:pointer;}
+.sess-kind button[aria-pressed="true"]{background:var(--ink); color:var(--paper);}
+.sess-consent{display:flex; gap:10px; align-items:flex-start; font-size:15px; line-height:1.4; padding:12px 14px; border:1px solid var(--line); border-radius:14px; cursor:pointer;}
+.sess-consent input{width:20px; height:20px; margin-top:1px; accent-color:var(--crimson); flex-shrink:0;}
+.sess-consent.ok{border-color:var(--ok); background:var(--ok-soft);}
+.sess-main{display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; flex:1; min-height:280px;}
+@media (max-width:760px){ .sess-main{grid-template-columns:1fr;} }
+.sess-box{display:flex; flex-direction:column; border:1px solid var(--line); border-radius:16px; min-height:0; overflow:hidden;}
+.sess-box > .eyebrow{display:flex; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--line);}
+.sess-live{flex:1; overflow:auto; padding:12px 14px; font-size:16px; line-height:1.6; min-height:160px; white-space:pre-wrap; overflow-wrap:anywhere;}
+.sess-live .interim{color:var(--muted);}
+.sess-live .empty{color:var(--muted); font-size:14.5px;}
+.sess-notes{flex:1; border:none; resize:none; padding:12px 14px; font:16px/1.6 var(--sans); background:transparent; color:var(--ink); min-height:160px;}
+.sess-notes:focus{outline:none;}
+.sess-help{font-size:13.5px; color:var(--muted); line-height:1.45;}
+.sess-help.warn{color:var(--warn); background:var(--warn-soft); border-radius:12px; padding:10px 12px;}
+.sess-actions{display:flex; gap:10px; flex-wrap:wrap; position:sticky; bottom:0; background:var(--paper); padding-top:6px;}
+.sess-actions .btn{font-size:14px; padding:14px 20px; flex:1 1 150px; justify-content:center;}
+.sess-actions .btn.rec{background:var(--crimson); border-color:var(--crimson); color:#fff; font-weight:600;}
+.sess-actions .btn.end{background:var(--ink); border-color:var(--ink); color:var(--paper); font-weight:600;}
+.sess-pick{display:flex; flex-direction:column; gap:8px;}
+.sess-pick input{border:1px solid var(--line-strong); border-radius:12px; padding:13px 14px; font-size:16px; background:var(--paper);}
+.sess-list{display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow:auto;}
+.sess-list button{display:flex; justify-content:space-between; gap:10px; text-align:left; border:1px solid var(--line); background:var(--paper); border-radius:12px; padding:12px 14px; font:inherit; color:inherit; cursor:pointer;}
+.sess-list button:hover{border-color:var(--ink-2);}
+.sess-list b{font-weight:600;}
+.sess-list span{color:var(--muted); font-size:13px; white-space:nowrap;}
+.sess-out{display:flex; flex-direction:column; gap:12px;}
+.sess-card{border:1px solid var(--line); border-radius:16px; padding:14px 16px;}
+.sess-card h3{font-size:18px; margin-bottom:6px;}
+.sess-card ul{margin:0; padding-left:20px; line-height:1.55;}
+.sess-card p{margin:0; line-height:1.55;}
+.sess-card textarea{width:100%; min-height:170px; border:1px solid var(--line-strong); border-radius:10px; padding:10px 12px; font:15px/1.55 var(--sans); background:var(--paper); color:var(--ink);}
+.sess-steps{display:flex; flex-direction:column; gap:6px; font-size:14.5px;}
+.sess-steps div::before{content:"…"; display:inline-block; width:22px; color:var(--muted);}
+.sess-steps div.ok::before{content:"✓"; color:var(--ok);}
+.sess-steps div.bad::before{content:"!"; color:var(--crimson); font-weight:700;}
 </style>
 
 <div class="wrap">
@@ -572,6 +631,9 @@ body.ro #drawerBody input, body.ro #drawerBody textarea, body.ro #reviewPane inp
   <div class="drawer-close"><button class="btn sm" id="drawerClose">Close · Esc</button></div>
   <div id="drawerBody"></div>
 </aside>
+
+<button class="sess-fab" id="sessFab" hidden><i></i><span>Start a session</span></button>
+<section class="sess" id="sess" aria-label="Live session"><div class="sess-wrap" id="sessBody"></div></section>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
@@ -2023,6 +2085,7 @@ function detailHtml(id) {
         <h2>${esc(p.name)}</h2>
         <div class="links">
           <span class="badge ${st.badge}">${esc(st.label)}</span>
+          <button class="btn sm solid" data-session="${esc(p.id)}">● Start session</button>
           ${p.website ? `<a href="${esc(p.website)}" target="_blank" rel="noopener">${esc(p.domain || 'Website')} ↗</a>` : ''}
           <a href="${google}" target="_blank" rel="noopener">Google ↗</a>
           <a href="${linkedin}" target="_blank" rel="noopener">${p.contact_name ? `Find ${esc(p.contact_name.split(' ')[0])} on LinkedIn` : 'Search LinkedIn'} ↗</a>
@@ -2554,6 +2617,352 @@ function readOnlyDb(db) {
 }
 let lastCrmView = '', lastBoardView = '';
 
+// ---------- live session (a call or meeting with a business) ----------
+// Start session → the page listens and writes down what's said (in the
+// browser; only text is kept, never audio). If the browser won't share the
+// mic here, notes typed or dictated with the keyboard's mic work the same.
+// End session → Claude writes a summary, action items and next steps, it's
+// saved and logged to the class CRM, emailed to the student, and a thank-you
+// is offered as a Gmail draft.
+const SES_KEY = 'outreach-live-session';
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let SES = null;     // the open session, or null
+let sesTimer = null, sesWake = null;
+
+function sesSave() { if (SES && !SES.done) { try { localStorage.setItem(SES_KEY, JSON.stringify({ ...SES, rec: null, listening: false, interim: '' })); } catch (e) { /* storage blocked */ } } }
+function sesLoad() { try { const j = JSON.parse(localStorage.getItem(SES_KEY) || 'null'); return j && j.target ? j : null; } catch (e) { return null; } }
+function sesForget() { try { localStorage.removeItem(SES_KEY); } catch (e) { /* storage blocked */ } }
+const fmtClock = ms => { const s = Math.floor(ms / 1000); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const r = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(r).padStart(2, '0'); };
+const sesElapsed = () => SES ? SES.elapsedMs + (SES.runningSince ? Date.now() - SES.runningSince : 0) : 0;
+
+function targetFromProspect(p) {
+  return { pid: p.id, name: p.contact_name || '', business: shortName(p.name), email: p.email || '', phone: p.phone || '', crm_org_id: p.crm_org_id || (crmMatch(p.name) || {}).id || null, thread_id: threadIdOf(p) || p.thread_id || null, subject: p.subject || '', town: p.town || '' };
+}
+function targetFromOrg(o) {
+  return { pid: null, name: '', business: o.name, email: '', phone: '', crm_org_id: o.id, thread_id: null, subject: '', town: o.city || '' };
+}
+
+function sesCandidates(q) {
+  const k = String(q || '').toLowerCase().trim();
+  const rank = { replied: 0, followed_up: 1, sent: 2 };
+  const seen = new Set();
+  const out = [];
+  for (const p of [...S.prospects].filter(p => rank[p.status] != null).sort((a, b) => rank[a.status] - rank[b.status] || String(b.replied_at || b.sent_at || '').localeCompare(String(a.replied_at || a.sent_at || '')))) {
+    seen.add(nameKey(p.name));
+    out.push({ label: shortName(p.name), sub: [p.contact_name, p.town, p.status === 'replied' ? 'wrote back' : null].filter(Boolean).join(' · '), target: () => targetFromProspect(p), hay: `${p.name} ${p.contact_name || ''} ${p.town || ''}`.toLowerCase() });
+  }
+  for (const o of (S.crmMine || [])) {
+    if (seen.has(nameKey(o.name)) || o.stage === 'passed') continue;
+    out.push({ label: o.name, sub: [o.city, o.stage_label || o.stage].filter(Boolean).join(' · '), target: () => targetFromOrg(o), hay: `${o.name} ${o.city || ''}`.toLowerCase() });
+  }
+  return (k ? out.filter(c => c.hay.includes(k)) : out).slice(0, 40);
+}
+
+function openSession(target) {
+  const saved = sesLoad();
+  if (!target && saved) { SES = { ...saved, rec: null, listening: false, interim: '', runningSince: saved.runningSince ? Date.now() : null }; }
+  else if (target) {
+    // A session already under way (on this device) is never thrown away by accident: open it instead.
+    if (saved && saved.started && !(saved.target.pid && saved.target.pid === target.pid) && !(saved.target.business === target.business)) { SES = { ...saved, rec: null, listening: false, interim: '', runningSince: saved.runningSince ? Date.now() : null }; toast(`You still have a session open with ${saved.target.business}. End or discard it first.`); }
+    else if (saved && saved.started) { SES = { ...saved, rec: null, listening: false, interim: '', runningSince: saved.runningSince ? Date.now() : null }; }
+    else SES = { target, kind: 'call', consent: false, finals: [], notes: '', elapsedMs: 0, runningSince: null, started: false, startedAt: null, mic: null, out: null, done: false };
+  } else SES = { picking: true };
+  $('#sess').classList.add('on');
+  document.documentElement.style.overflow = 'hidden';
+  renderSes();
+  sesSave();
+}
+function closeSession() {
+  stopListening();
+  clearInterval(sesTimer); sesTimer = null;
+  if (sesWake) { sesWake.release().catch(() => {}); sesWake = null; }
+  if (SES && SES.done) sesForget(); else sesSave();
+  SES = null;
+  $('#sess').classList.remove('on');
+  document.documentElement.style.overflow = '';
+  paintFab();
+}
+function paintFab() {
+  const b = $('#sessFab');
+  if (!b) return;
+  b.hidden = S.readOnly;
+  const saved = sesLoad();
+  b.querySelector('span').textContent = saved && saved.started ? `Back to session · ${saved.target.business}` : 'Start a session';
+}
+
+function renderSes() {
+  const root = $('#sessBody');
+  if (!SES) { root.innerHTML = ''; return; }
+  if (SES.picking) {
+    root.innerHTML = `<div class="sess-top"><div><div class="eyebrow">New session</div><h2>Who are you talking to?</h2></div><button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
+      <div class="sess-pick"><input id="sessQ" type="search" placeholder="Search businesses or people" autocomplete="off"><div class="sess-list" id="sessList"></div>
+      <details class="sess-card"><summary style="cursor:pointer">Someone not on this list</summary>
+        <div class="sess-pick" style="margin-top:10px"><input id="sessBiz" placeholder="Business name"><input id="sessWho" placeholder="Their name (optional)"><button class="btn end" data-ses="other">Start</button></div></details></div>`;
+    const paint = () => {
+      const list = sesCandidates($('#sessQ').value);
+      S._sesList = list;
+      $('#sessList').innerHTML = list.length ? list.map((c, i) => `<button data-ses-pick="${i}"><b>${esc(c.label)}</b><span>${esc(c.sub)}</span></button>`).join('') : '<div class="sess-help">No match. Use "Someone not on this list".</div>';
+    };
+    paint();
+    $('#sessQ').addEventListener('input', paint);
+    setTimeout(() => $('#sessQ') && $('#sessQ').focus(), 50);
+    return;
+  }
+  const t = SES.target;
+  if (SES.out) { renderSesOut(root); return; }
+  const transcript = SES.finals.join(' ');
+  const micNote = SES.mic === 'blocked'
+    ? `<div class="sess-help warn">This browser won't let the page use your mic here, so it can't write down the conversation by itself. Keep notes in the box instead: on a phone, tap it and press the mic on your keyboard to dictate; on a laptop, just type. If it's a Zoom or Teams call, you can paste their transcript into the box at the end.</div>`
+    : SES.mic === 'unsupported'
+      ? `<div class="sess-help warn">This browser can't turn speech into text. Chrome, Edge or Safari can. Notes typed or dictated with your keyboard's mic work the same.</div>`
+      : '';
+  root.innerHTML = `
+    <div class="sess-top"><div style="min-width:0"><div class="eyebrow">${SES.kind === 'meeting' ? 'Meeting' : 'Call'}${t.town ? ' · ' + esc(t.town) : ''}</div><h2>${esc(t.business)}</h2>
+      <div class="who">${[t.name ? esc(t.name) : null, t.phone ? `<a href="tel:${esc(String(t.phone).replace(/[^0-9+]/g, ''))}">${esc(t.phone)}</a>` : null].filter(Boolean).join(' · ')}</div></div>
+      <button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
+    <div class="sess-bar"><span class="sess-clock" id="sessClock">${fmtClock(sesElapsed())}</span>
+      <span class="sess-pill ${SES.listening ? 'live' : ''}" id="sessPill"><i></i>${SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}</span>
+      <span class="sess-kind" role="group" aria-label="Call or meeting"><button data-ses-kind="call" aria-pressed="${SES.kind === 'call'}">Call</button><button data-ses-kind="meeting" aria-pressed="${SES.kind === 'meeting'}">Meeting</button></span></div>
+    <label class="sess-consent ${SES.consent ? 'ok' : ''}"><input type="checkbox" id="sessConsent" ${SES.consent ? 'checked' : ''}> <span>${esc(t.name ? t.name.split(' ')[0] : 'They')} said it's OK to record. <span style="color:var(--muted)">(Connecticut requires their OK before recording a phone call. Ask first.)</span></span></label>
+    ${micNote}
+    <div class="sess-main">
+      <div class="sess-box"><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
+        <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : '<span class="empty">Press Start listening once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>'}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
+      <div class="sess-box"><div class="eyebrow"><span>Your notes</span></div>
+        <textarea class="sess-notes" id="sessNotes" placeholder="Anything worth remembering: team size, what eats their time, what they asked you, what you promised to send…">${esc(SES.notes)}</textarea></div>
+    </div>
+    <div class="sess-actions">
+      ${SES.listening
+        ? '<button class="btn" data-ses="pause">Pause</button>'
+        : `<button class="btn rec" data-ses="listen" ${SES.mic === 'blocked' || SES.mic === 'unsupported' ? 'disabled' : ''}>● ${SES.started && SES.finals.length ? 'Keep listening' : 'Start listening'}</button>`}
+      <button class="btn end" data-ses="end">${SES.ending ? 'Tap again to end and summarize' : `End ${SES.kind === 'meeting' ? 'meeting' : 'call'}`}</button>
+    </div>
+    ${SES.started ? `<button class="btn ghost sm" data-ses="discard" style="align-self:center">${SES.discarding ? 'Tap again to throw this session away' : 'Discard this session'}</button>` : ''}`;
+  $('#sessNotes').addEventListener('input', e => { SES.notes = e.target.value; if (!SES.started) sesBegin(); sesSave(); });
+  $('#sessConsent').addEventListener('change', e => { SES.consent = e.target.checked; if (!SES.consent) stopListening(); renderSes(); sesSave(); });
+  const live = $('#sessLive'); live.scrollTop = live.scrollHeight;
+}
+function paintLive() {
+  const live = $('#sessLive'); if (!live || !SES) return;
+  const transcript = SES.finals.join(' ');
+  live.innerHTML = (transcript ? esc(transcript) : '') + (SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : '') || '<span class="empty">Listening…</span>';
+  live.scrollTop = live.scrollHeight;
+}
+function paintPill() {
+  const pill = $('#sessPill'); if (!pill || !SES) return;
+  pill.className = 'sess-pill' + (SES.listening ? ' live' : '');
+  pill.innerHTML = `<i></i>${SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}`;
+}
+
+function sesBegin() {
+  if (SES.started) return;
+  SES.started = true; SES.startedAt = nowIso(); SES.runningSince = Date.now();
+  clearInterval(sesTimer);
+  sesTimer = setInterval(() => { const c = $('#sessClock'); if (c) c.textContent = fmtClock(sesElapsed()); }, 1000);
+  if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { sesWake = w; }).catch(() => {});
+  paintFab();
+}
+
+async function startListening() {
+  if (!SES.consent) { toast('Tick the box once they\'ve said it\'s OK to record.', { err: true }); return; }
+  if (!SR) { SES.mic = 'unsupported'; renderSes(); return; }
+  // Ask for the mic first: it shows the browser's prompt, and tells us quickly if this page isn't allowed to use it.
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach(tr => tr.stop()); }
+    catch (e) { SES.mic = 'blocked'; renderSes(); sesSave(); return; }
+  }
+  const r = new SR();
+  // iPhones repeat earlier words when left running continuously, so there it listens in short stretches and restarts.
+  r.continuous = !IS_IOS; r.interimResults = true; r.lang = 'en-US';
+  r.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) { const tx = String(res[0].transcript || '').trim(); if (tx && SES.finals[SES.finals.length - 1] !== tx) SES.finals.push(tx); }
+      else interim += res[0].transcript;
+    }
+    SES.interim = interim; paintLive(); sesSave();
+  };
+  r.onerror = e => {
+    if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(e.error)) { SES.mic = 'blocked'; SES.listening = false; renderSes(); sesSave(); }
+  };
+  r.onend = () => { if (SES && SES.listening && SES.rec === r) { setTimeout(() => { try { r.start(); } catch (err) { /* already running */ } }, 150); } };
+  SES.rec = r; SES.listening = true; SES.mic = 'ok';
+  sesBegin();
+  if (!SES.runningSince) SES.runningSince = Date.now();
+  try { r.start(); } catch (e) { SES.mic = 'blocked'; SES.listening = false; }
+  renderSes(); sesSave();
+}
+function stopListening() {
+  if (!SES) return;
+  SES.listening = false;
+  if (SES.interim) { SES.finals.push(SES.interim.trim()); SES.interim = ''; }
+  if (SES.rec) { try { SES.rec.stop(); } catch (e) { /* not running */ } SES.rec = null; }
+}
+
+async function endSession() {
+  stopListening();
+  const transcript = SES.finals.join(' ').trim();
+  const notes = String(SES.notes || '').trim();
+  if (!transcript && !notes) { toast('Nothing to summarize yet: start listening or write a few notes first.', { err: true }); renderSes(); return; }
+  if (SES.runningSince) { SES.elapsedMs += Date.now() - SES.runningSince; SES.runningSince = null; }
+  clearInterval(sesTimer); sesTimer = null;
+  if (sesWake) { sesWake.release().catch(() => {}); sesWake = null; }
+  SES.endedAt = nowIso();
+  SES.out = { state: 'writing', steps: {} };
+  sesSave(); renderSes();
+  if (!S.sample) { SES.out = { state: 'error', error: 'Claude isn\'t available in this view, so it can\'t write the summary. Your notes are saved on this device.' }; renderSes(); return; }
+  const t = SES.target;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const prompt = [
+    `You help ${me().name || 'a UConn student'} (${me().majorCap || 'student'} at UConn) after a ${SES.kind} with a small-business owner. He reached out to learn how they started and run their business; he's also in a UConn class, Connect.AI, where students help local small businesses with AI for free.`,
+    `Business: ${t.business}${t.town ? ' (' + t.town + ')' : ''}. Person: ${t.name || 'the owner'}. Length: ${fmtClock(SES.elapsedMs)}. Today: ${today}.`,
+    `TRANSCRIPT (from the browser's speech-to-text; it can be messy, mix up speakers and mishear words, so never treat a garbled phrase as a fact):\n${transcript || '(none)'}`,
+    `HIS NOTES (more reliable than the transcript):\n${notes || '(none)'}`,
+    'Write in plain, normal words, like a person, no hype and no filler. Use ONLY what is in the transcript and notes; never invent numbers, names or promises. If something is unclear, leave it out.',
+    'Return JSON with exactly these keys:',
+    '"summary": 3 to 5 sentences on what was discussed.',
+    '"learned": array of short facts about the business (how it started, team size, customers, tools, what takes their time). Only things actually said.',
+    '"action_items": array of things HE needs to do (send something, follow up, intro someone). Empty if none.',
+    '"next_step": one line, the single next step with them.',
+    '"next_step_due": a date YYYY-MM-DD if one was agreed or is obvious, else "".',
+    '"connect_ai_fit": "yes", "maybe" or "no", from whether they described time-consuming work AI could help with and seemed open.',
+    `"thank_you": a short thank-you email body to ${t.name ? t.name.split(' ')[0] : 'them'}: start "Hi ${t.name ? t.name.split(' ')[0] : 'there'},", thank them for their time, mention one specific thing they told him, then (only if connect_ai_fit is yes or maybe) ONE plain sentence like "I'm also in a UConn class called Connect.AI where students help local small businesses with things like that for free. If it sounds useful, I'm happy to send more about it." tied to what they said takes their time. End "Thanks,\\n${me().first}". No links, no pitch beyond that sentence, under 110 words.`,
+  ].join('\n\n');
+  let out;
+  try { out = await S.sample.json(prompt, { modelTier: 'default', cache: false }); }
+  catch (e) { SES.out = { state: 'error', error: e && e.code === 'not_granted' ? 'Allow Claude for this page to get the summary. Your notes are saved on this device.' : `Claude couldn't write the summary (${(e && e.message) || 'error'}). Your notes are saved on this device; try End again.` }; renderSes(); return; }
+  SES.out = { state: 'done', ...out, steps: {} };
+  sesSave(); renderSes();
+  sesFinish();
+}
+
+function sesDigestText() {
+  const o = SES.out, t = SES.target;
+  return [
+    `${SES.kind === 'meeting' ? 'Meeting' : 'Call'} with ${t.name || 'the owner'} at ${t.business}, ${fmtClock(SES.elapsedMs)}`,
+    '', o.summary || '',
+    (o.learned || []).length ? '\nWhat you learned:\n' + o.learned.map(x => '- ' + x).join('\n') : '',
+    (o.action_items || []).length ? '\nYour action items:\n' + o.action_items.map(x => '- ' + x).join('\n') : '',
+    o.next_step ? `\nNext step: ${o.next_step}${o.next_step_due ? ' (by ' + o.next_step_due + ')' : ''}` : '',
+    `\nGood fit for Connect.AI: ${o.connect_ai_fit || 'unclear'}`,
+  ].filter(x => x !== '').join('\n');
+}
+
+async function sesStep(key, fn) {
+  SES.out.steps[key] = 'run'; renderSes();
+  try { const r = await fn(); SES.out.steps[key] = r === false ? 'skip' : 'ok'; }
+  catch (e) { SES.out.steps[key] = 'bad'; SES.out.stepErr = SES.out.stepErr || {}; SES.out.stepErr[key] = (e && e.message) || 'failed'; }
+  sesSave(); renderSes();
+}
+
+async function sesFinish() {
+  const t = SES.target, o = SES.out;
+  const id = `${(t.pid || nameKey(t.business).replace(/\s+/g, '-')).slice(0, 60)}-${Date.now()}`;
+  const digest = sesDigestText();
+  await sesStep('save', async () => {
+    if (!S.db) throw new Error('desk data not connected');
+    await S.db.doc(`sessions/${id}`).set({ business: t.business, person: t.name || null, prospect_id: t.pid, crm_org_id: t.crm_org_id, kind: SES.kind, started_at: SES.startedAt, ended_at: SES.endedAt, minutes: Math.round(SES.elapsedMs / 60000), consent: !!SES.consent, transcript: SES.finals.join(' ').slice(0, 60000), notes: SES.notes || '', summary: o.summary || '', learned: o.learned || [], action_items: o.action_items || [], next_step: o.next_step || '', next_step_due: o.next_step_due || '', connect_ai_fit: o.connect_ai_fit || '', thank_you: o.thank_you || '' });
+    if (t.pid) await patch(t.pid, { last_session_at: SES.endedAt, call_notes: o.summary || '', called_at: SES.endedAt }, `${SES.kind === 'meeting' ? 'Met with' : 'Called'} ${t.name || t.business} (${fmtClock(SES.elapsedMs)})`);
+  });
+  await sesStep('crm', async () => {
+    if (!S.mcp) throw new Error('CRM not connected');
+    const p = t.pid ? S.prospects.find(x => x.id === t.pid) : null;
+    if (!p && !t.crm_org_id) return false;
+    const update = { stage: 'talks', next_step: (o.next_step || 'Send the thank-you').slice(0, 290), ...(o.next_step_due && /^\d{4}-\d{2}-\d{2}$/.test(o.next_step_due) ? { next_step_due: o.next_step_due } : {}) };
+    const body = digest.slice(0, 3900);
+    if (p) await logToCrm({ ...p, crm_org_id: p.crm_org_id || t.crm_org_id }, SES.kind, body, { update, withContact: false });
+    else { await S.mcp.callTool(CRM, 'crm_log_touchpoint', { org: t.crm_org_id, kind: SES.kind, body }); await S.mcp.callTool(CRM, 'crm_update_org', { org: t.crm_org_id, ...update }); }
+  });
+  await sesStep('email', async () => {
+    if (!S.mcp) throw new Error('Gmail not connected');
+    const to = me().notify; if (!to.length) return false;
+    await S.mcp.callTool(GMAIL, 'send_message', { to, subject: `Session notes: ${t.name ? t.name + ' at ' : ''}${t.business}`, body: digest + (o.thank_you ? `\n\nThank-you draft (on the desk, one tap to put it in Gmail):\n\n${o.thank_you}` : '') });
+  });
+  SES.done = true;
+  sesForget();
+  paintFab();
+}
+
+// Find where to reply: the business's latest message (so the thank-you lands in the same conversation).
+async function sesReplyTarget(t) {
+  const mine = new Set([me().schoolEmail, settings().sender_email].map(x => String(x || '').toLowerCase()).filter(Boolean));
+  const fromOf = m => String(m.sender || m.from || '').toLowerCase();
+  let threadId = t.thread_id;
+  if (!threadId && t.business) {
+    const q = t.email ? `(from:${t.email} OR to:${t.email})` : `"${t.business}" "UConn student"`;
+    const r = await S.mcp.callTool(GMAIL, 'search_threads', { query: q, pageSize: 1, view: 'THREAD_VIEW_IDS_ONLY' });
+    threadId = (((r.payload || {}).threads || [])[0] || {}).id || null;
+  }
+  if (!threadId) return null;
+  const th = await S.mcp.callTool(GMAIL, 'get_thread', { threadId, messageFormat: 'METADATA_ONLY' });
+  const msgs = (th.payload || {}).messages || [];
+  const theirs = msgs.filter(m => !mine.has(fromOf(m)));
+  const last = theirs[theirs.length - 1] || msgs[msgs.length - 1];
+  if (!last) return null;
+  const email = t.email || (theirs.length ? fromOf(theirs[theirs.length - 1]) : '') || ((msgs[0] || {}).toRecipients || [])[0] || '';
+  return { messageId: last.id, email };
+}
+
+async function sesDraftThanks() {
+  const ta = $('#sessThanks'); const body = ta ? ta.value.trim() : '';
+  if (!body) return;
+  SES.out.thank_you = body;
+  await sesStep('draft', async () => {
+    if (!S.mcp) throw new Error('Gmail not connected');
+    const t = SES.target;
+    const where = await sesReplyTarget(t);
+    if (!where || !where.email) throw new Error('couldn\'t find their email');
+    await S.mcp.callTool(GMAIL, 'create_draft', { to: [where.email], ...ccList(), subject: /^re:/i.test(t.subject || '') ? t.subject : `Re: ${t.subject || `Thanks from ${me().first}`}`, body, replyToMessageId: where.messageId });
+  });
+}
+
+function renderSesOut(root) {
+  const o = SES.out, t = SES.target;
+  const stepLine = (k, label) => { const s = o.steps[k]; const cls = s === 'ok' ? 'ok' : s === 'bad' ? 'bad' : ''; const extra = s === 'bad' ? ` (${esc((o.stepErr || {})[k] || 'failed')})` : s === 'skip' ? ' (skipped: not in the CRM)' : ''; return s ? `<div class="${cls}">${label}${extra}</div>` : ''; };
+  const list = a => (a || []).length ? `<ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p style="color:var(--muted)">None.</p>';
+  root.innerHTML = `
+    <div class="sess-top"><div><div class="eyebrow">${SES.kind === 'meeting' ? 'Meeting' : 'Call'} ended · ${fmtClock(SES.elapsedMs)}</div><h2>${esc(t.business)}</h2></div>
+      <button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
+    ${o.state === 'writing' ? '<div class="sess-card"><p>Writing your summary…</p></div>' : ''}
+    ${o.state === 'error' ? `<div class="sess-help warn">${esc(o.error)}</div><div class="sess-actions"><button class="btn end" data-ses="retry">Try again</button></div>` : ''}
+    ${o.state === 'done' ? `<div class="sess-out">
+      <div class="sess-card"><h3>Summary</h3><p>${esc(o.summary || '')}</p></div>
+      <div class="sess-card"><h3>What you learned</h3>${list(o.learned)}</div>
+      <div class="sess-card"><h3>Your action items</h3>${list(o.action_items)}</div>
+      <div class="sess-card"><h3>Next step</h3><p>${esc(o.next_step || '')}${o.next_step_due ? ` <span style="color:var(--muted)">· by ${esc(o.next_step_due)}</span>` : ''}</p><p style="color:var(--muted); margin-top:6px">Connect.AI fit: ${esc(o.connect_ai_fit || 'unclear')}</p></div>
+      <div class="sess-card"><h3>Thank-you email</h3><textarea id="sessThanks">${esc(o.thank_you || '')}</textarea>
+        <div class="sess-actions" style="position:static; margin-top:10px"><button class="btn end" data-ses="draft" ${o.steps.draft === 'ok' || o.steps.draft === 'run' ? 'disabled' : ''}>${o.steps.draft === 'ok' ? 'In your Gmail drafts ✓' : 'Put it in my Gmail drafts'}</button></div></div>
+      <div class="sess-card"><h3>Done for you</h3><div class="sess-steps">${stepLine('save', 'Saved on your desk')}${stepLine('crm', 'Logged in the class CRM with the next step')}${stepLine('email', 'Summary emailed to you')}${stepLine('draft', 'Thank-you saved as a Gmail draft (it doesn\'t send until you press Send)')}</div></div>
+    </div>` : ''}`;
+}
+
+// Clicks inside the session screen, the round button, and "Start session" on a business.
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-session]');
+  if (s) { const p = S.prospects.find(x => x.id === s.dataset.session); if (p) { closeDrawer(); openSession(targetFromProspect(p)); } return; }
+  if (e.target.closest('#sessFab')) { openSession(null); return; }
+  if (!SES) return;
+  const pick = e.target.closest('[data-ses-pick]');
+  if (pick) { const c = (S._sesList || [])[Number(pick.dataset.sesPick)]; if (c) { SES = null; sesForget(); openSession(c.target()); } return; }
+  const kind = e.target.closest('[data-ses-kind]');
+  if (kind) { SES.kind = kind.dataset.sesKind; renderSes(); sesSave(); return; }
+  const a = e.target.closest('[data-ses]');
+  if (!a) return;
+  const act = a.dataset.ses;
+  if (act === 'close') closeSession();
+  else if (act === 'other') { const biz = ($('#sessBiz').value || '').trim(); if (!biz) { toast('Type the business name.', { err: true }); return; } const who = ($('#sessWho').value || '').trim(); const org = crmMatch(biz); SES = null; sesForget(); openSession({ pid: null, name: who, business: biz, email: '', phone: '', crm_org_id: org ? org.id : null, thread_id: null, subject: '', town: org ? org.city || '' : '' }); }
+  else if (act === 'discard') { if (!SES.discarding) { SES.discarding = true; renderSes(); setTimeout(() => { if (SES) { SES.discarding = false; renderSes(); } }, 4000); return; } stopListening(); SES.done = true; closeSession(); toast('Session thrown away.'); }
+  else if (act === 'listen') startListening();
+  else if (act === 'pause') { stopListening(); if (SES.runningSince) { SES.elapsedMs += Date.now() - SES.runningSince; SES.runningSince = null; } renderSes(); sesSave(); }
+  else if (act === 'end') { if (!SES.ending) { SES.ending = true; renderSes(); setTimeout(() => { if (SES && SES.ending && !SES.out) { SES.ending = false; renderSes(); } }, 4000); return; } SES.ending = false; endSession(); }
+  else if (act === 'retry') { SES.out = null; endSession(); }
+  else if (act === 'draft') sesDraftThanks();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && SES && SES.picking) closeSession(); });
+paintFab();
+
 // ---------- boot ----------
 render();
 (async () => {
@@ -2562,7 +2971,7 @@ render();
   // Anyone but the student gets a view-only desk: their data, but no Gmail, no CRM
   // calls, no Claude, and no writes (the db rules block writes too).
   S.readOnly = !owner;
-  document.body.classList.toggle('ro', S.readOnly);
+  document.body.classList.toggle('ro', S.readOnly); paintFab();
   const [db, mcp, sample] = await Promise.all([
     window.claude ? window.claude.use('db') : null,
     window.claude && owner ? window.claude.use('mcp') : null,
