@@ -2652,7 +2652,8 @@ function sesCandidates(q) {
     seen.add(nameKey(p.name));
     out.push({ label: shortName(p.name), sub: [p.contact_name, p.town, p.status === 'replied' ? 'wrote back' : null].filter(Boolean).join(' · '), target: () => targetFromProspect(p), hay: `${p.name} ${p.contact_name || ''} ${p.town || ''}`.toLowerCase() });
   }
-  for (const o of (S.crmMine || [])) {
+  const stageRank = { talks: 0, applied: 0, selected: 0, active: 0, contacted: 1, lead: 2 };
+  for (const o of [...(S.crmMine || [])].sort((a, b) => (stageRank[a.stage] ?? 3) - (stageRank[b.stage] ?? 3) || String(b.last_touch_at || '').localeCompare(String(a.last_touch_at || '')))) {
     if (seen.has(nameKey(o.name)) || o.stage === 'passed') continue;
     out.push({ label: o.name, sub: [o.city, o.stage_label || o.stage].filter(Boolean).join(' · '), target: () => targetFromOrg(o), hay: `${o.name} ${o.city || ''}`.toLowerCase() });
   }
@@ -2713,7 +2714,7 @@ function renderSes() {
   if (SES.out) { renderSesOut(root); return; }
   const transcript = SES.finals.join(' ');
   const micNote = SES.mic === 'blocked'
-    ? `<div class="sess-help warn">This browser won't let the page use your mic here, so it can't write down the conversation by itself. Keep notes in the box instead: on a phone, tap it and press the mic on your keyboard to dictate; on a laptop, just type. If it's a Zoom or Teams call, you can paste their transcript into the box at the end.</div>`
+    ? `<div class="sess-help warn">claude.ai doesn't let this page use your mic directly, so use your device's dictation in the notes box instead. It types what it hears and works the same: on Windows, click in Your notes and press Windows key + H; on a Mac, press Fn twice; on a phone, tap the box and press the mic on the keyboard. Put a phone call on speaker so it hears both of you. Zoom or Teams transcripts can be pasted in at the end.</div>`
     : SES.mic === 'unsupported'
       ? `<div class="sess-help warn">This browser can't turn speech into text. Chrome, Edge or Safari can. Notes typed or dictated with your keyboard's mic work the same.</div>`
       : '';
