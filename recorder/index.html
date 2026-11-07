@@ -109,10 +109,18 @@ function msg(text, cls) { $('msg').className = 'note' + (cls ? ' ' + cls : ''); 
 
 async function start() {
   if (!st.consent) { msg('Tick the box once they\'ve said it\'s OK to record.', 'warn'); return; }
-  if (!SR) { msg('This browser can\'t turn speech into text. Open this page in Chrome, Edge or Safari.', 'warn'); return; }
+  if (!SR) { msg('This browser can\'t turn speech into text. Open this page in Google Chrome (or Safari on a Mac or iPhone).', 'warn'); return; }
+  // Ask for the mic first so the browser shows its prompt, and so a block shows up as a clear message.
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try { const m = await navigator.mediaDevices.getUserMedia({ audio: true }); m.getTracks().forEach(t => t.stop()); }
+    catch (e) { msg(`The microphone is blocked (${esc(e.name || 'error')}). Click the mic or lock icon in the address bar, allow the microphone for this page, then tap Record again.`, 'warn'); paint(); return; }
+  }
   const r = new SR();
   r.continuous = !IOS; r.interimResults = true; r.lang = 'en-US';
+  let heard = false;
+  r.onstart = () => { msg('Listening. Talk normally; words show up below within a second or two. Keep this tab open until you tap End.'); };
   r.onresult = e => {
+    heard = true;
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const res = e.results[i];
@@ -122,17 +130,27 @@ async function start() {
     st.interim = interim; paint(); save(); sendLive();
   };
   r.onerror = e => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { listening = false; msg('The mic is blocked. Allow the microphone for this page (the icon in the address bar, or Settings → Safari → Microphone on iPhone) and tap Record again.', 'warn'); paint(); }
-    if (e.error === 'audio-capture') { listening = false; msg('No microphone found, or another app (like an active phone call on this phone) is using it.', 'warn'); paint(); }
+    if (e.error === 'no-speech' || e.error === 'aborted') return; // silence; it restarts on its own
+    listening = false; rec = null;
+    if (st.since) { st.elapsed += Date.now() - st.since; st.since = null; }
+    const why = {
+      'not-allowed': 'The microphone is blocked for this page. Click the mic or lock icon in the address bar, allow it, then tap Record again.',
+      'service-not-allowed': 'This browser won\'t let the page use its speech-to-text. Open this page in Google Chrome.',
+      'network': 'This browser\'s speech-to-text service couldn\'t be reached. Microsoft Edge and Brave often block it: open this page in Google Chrome.',
+      'audio-capture': 'No microphone found, or another app (like a call on this device) is using it.',
+      'language-not-supported': 'English speech-to-text isn\'t available in this browser. Try Google Chrome.',
+    }[e.error] || `Speech-to-text stopped (${esc(e.error)}). Try Google Chrome.`;
+    msg(why, 'warn'); paint(); save();
   };
   r.onend = () => { if (listening && rec === r) setTimeout(() => { try { r.start(); } catch (err) {} }, 150); };
   rec = r; listening = true;
   if (!st.startedAt) st.startedAt = new Date().toISOString();
   st.since = Date.now();
-  try { r.start(); } catch (e) { listening = false; }
+  try { r.start(); }
+  catch (e) { listening = false; rec = null; st.since = null; msg(`Couldn't start listening (${esc(e.name || e.message || 'error')}). Tap Record again.`, 'warn'); paint(); return; }
   if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { wake = w; }).catch(() => {});
   clearInterval(timer); timer = setInterval(() => { $('clock').textContent = fmt(elapsed()); }, 1000);
-  msg('Recording. Keep this tab open until you tap End.');
+  setTimeout(() => { if (listening && !heard && !transcript()) msg('Listening, but nothing has come through yet. Say a few words. If nothing shows up in 10 seconds, this browser\'s speech-to-text isn\'t working here: open this page in Google Chrome.'); }, 8000);
   paint(); save();
 }
 function pause() {
@@ -187,7 +205,7 @@ $('end').addEventListener('click', () => { if ($('end').dataset.sure) end(); els
 $('notes').addEventListener('input', () => { st.notes = $('notes').value; save(); paint(); sendLive(); });
 window.addEventListener('beforeunload', e => { if (listening) { e.preventDefault(); e.returnValue = ''; } });
 paint();
-if (qs.get('go') === '1' && st.consent && !st.startedAt) start();
+if (!st.startedAt) msg(SR ? 'Tap Record to start. Your browser will ask to use the microphone the first time.' : 'This browser can\'t turn speech into text. Open this page in Google Chrome (or Safari on a Mac or iPhone).', SR ? '' : 'warn');
 })();
 </script>
 </body>
