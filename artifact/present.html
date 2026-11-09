@@ -1,0 +1,208 @@
+<title>Outreach Live</title>
+<style>
+:root{--bg:#f7f6f2;--card:#ffffff;--ink:#16202e;--ink2:#4a5566;--muted:#7a8494;--line:#e3e1da;--bar:#2f5d9e;--bar2:#c9d6ea;--accent:#b3261e;--ok:#2e7d4f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151c;--card:#1a2029;--ink:#eef1f5;--ink2:#b7c0cc;--muted:#8a94a3;--line:#2a323d;--bar:#7fa7e0;--bar2:#2b3a52;--accent:#ef7a72;--ok:#6cc596}}
+:root[data-theme="dark"]{--bg:#11151c;--card:#1a2029;--ink:#eef1f5;--ink2:#b7c0cc;--muted:#8a94a3;--line:#2a323d;--bar:#7fa7e0;--bar2:#2b3a52;--accent:#ef7a72;--ok:#6cc596}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{min-height:100vh}
+.off{min-height:100vh;display:grid;place-items:center;color:var(--muted);font-size:15px;text-align:center;padding:16px}
+.off b{display:block;color:var(--ink2);font-size:20px;font-weight:600;margin-bottom:4px}
+.show{max-width:1280px;margin:0 auto;padding:clamp(16px,3vw,40px)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:clamp(16px,2.5vw,32px)}
+h1{margin:0;font-size:clamp(26px,3.6vw,48px);letter-spacing:-.01em}
+.sub{color:var(--ink2);font-size:clamp(14px,1.4vw,20px)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:clamp(10px,1.5vw,20px);margin-bottom:clamp(16px,2.5vw,32px)}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:clamp(14px,1.8vw,24px)}
+.stat .n{font-size:clamp(36px,5vw,72px);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.stat .l{color:var(--ink2);margin-top:8px;font-size:clamp(14px,1.3vw,19px)}
+.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(10px,1.5vw,20px)}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:clamp(14px,1.8vw,24px);min-width:0}
+.card h2{margin:0 0 14px;font-size:clamp(16px,1.6vw,22px)}
+.row{display:grid;grid-template-columns:minmax(90px,140px) 1fr auto;gap:10px;align-items:center;margin:8px 0;font-size:clamp(14px,1.3vw,18px)}
+.row .lab{color:var(--ink2)}
+.track{height:clamp(14px,1.6vw,22px);position:relative}
+.fill{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:0 4px 4px 0;min-width:2px}
+.row .v{font-variant-numeric:tabular-nums;font-weight:600;min-width:3ch;text-align:right}
+ul.list{list-style:none;margin:0;padding:0}
+ul.list li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:clamp(14px,1.3vw,18px)}
+ul.list li:first-child{border-top:0}
+ul.list .m{color:var(--muted);white-space:nowrap}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tag{border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:clamp(13px,1.2vw,17px);color:var(--ink2)}
+.tag b{color:var(--ink)}
+.foot{color:var(--muted);font-size:13px;margin-top:18px}
+.empty{color:var(--muted)}
+/* owner controls */
+.ctl{background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px}
+.ctl .in{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.ctl .st{font-weight:600}
+.ctl .st.live{color:var(--ok)}
+.ctl label{display:flex;gap:6px;align-items:center;color:var(--ink2);font-size:14px}
+.ctl select{font:inherit;font-size:14px;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+button{font:inherit;font-size:15px;padding:8px 16px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.go{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+button.stop{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button:disabled{opacity:.55;cursor:default}
+.msg{color:var(--ink2);font-size:14px;width:100%}
+.fs{position:fixed;right:12px;bottom:12px;opacity:.35;font-size:13px;padding:6px 10px}
+.fs:hover{opacity:1}
+</style>
+<script id="state" type="application/json">{"live":false}</script>
+<div id="app"><div class="off"><div><b>Nothing is being shown right now.</b>This page stays blank until the presenter turns it on.</div></div></div>
+<script id="main">
+(function(){
+'use strict';
+var SERVER='Connect AI';
+var STAGES=[['lead','Lead'],['contacted','Contacted'],['talks','In talks'],['applied','Applied'],['selected','Selected'],['active','Working with'],['completed','Done'],['passed','Not now']];
+var state={live:false};
+try{state=JSON.parse(document.getElementById('state').textContent)||state}catch(e){}
+var app=document.getElementById('app');
+var isOwner=false, busy=false, msg='';
+var opts={scope:(state.opts&&state.opts.scope)||'me',list:state.opts?state.opts.list!==false:true,activity:state.opts?state.opts.activity!==false:true,towns:state.opts?state.opts.towns!==false:true};
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function fmtDate(iso){try{var d=new Date(iso);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}catch(e){return ''}}
+function fmtTime(iso){try{var d=new Date(iso);return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}catch(e){return ''}}
+
+function showHtml(s){
+  var d=s.data||{};
+  var c=d.counts||{};
+  var reached=(c.contacted||0)+(c.talks||0)+(c.applied||0)+(c.selected||0)+(c.active||0)+(c.completed||0)+(c.passed||0);
+  var talking=(c.talks||0)+(c.applied||0)+(c.selected||0)+(c.active||0)+(c.completed||0);
+  var total=reached+(c.lead||0);
+  var max=Math.max.apply(null,STAGES.map(function(x){return c[x[0]]||0}).concat([1]));
+  var h='<div class="show"><div class="top"><h1>'+esc(d.title||'Outreach so far')+'</h1><div class="sub">'+esc(d.who||'')+'</div></div>';
+  h+='<div class="stats">'+
+    stat(total,'businesses on the list')+
+    stat(reached,'reached out to')+
+    stat(talking,'talking with us')+
+    stat(d.touches7||0,'touchpoints this week')+'</div>';
+  h+='<div class="grid"><div class="card"><h2>Where each business is</h2>';
+  STAGES.forEach(function(x){var v=c[x[0]]||0;h+='<div class="row" title="'+esc(x[1])+': '+v+'"><span class="lab">'+esc(x[1])+'</span><span class="track"><span class="fill" style="width:'+(v/max*100).toFixed(1)+'%"></span></span><span class="v">'+v+'</span></div>'});
+  h+='</div><div class="card">';
+  if(s.opts&&s.opts.list!==false){
+    h+='<h2>Talking with us</h2>';
+    var L=d.talks||[];
+    h+=L.length?'<ul class="list">'+L.map(function(o){return '<li><span>'+esc(o.name)+'</span><span class="m">'+esc([o.city,o.stage].filter(Boolean).join(' · '))+'</span></li>'}).join('')+'</ul>':'<div class="empty">No one yet.</div>';
+  }
+  if(s.opts&&s.opts.activity!==false){
+    h+='<h2 style="margin-top:22px">Latest activity</h2>';
+    var A=d.activity||[];
+    h+=A.length?'<ul class="list">'+A.map(function(a){return '<li><span>'+esc(a.org)+' <span class="m">'+esc(a.what)+'</span></span><span class="m">'+esc(fmtDate(a.at))+'</span></li>'}).join('')+'</ul>':'<div class="empty">Nothing yet.</div>';
+  }
+  h+='</div></div>';
+  if(s.opts&&s.opts.towns!==false&&(d.towns||[]).length){
+    h+='<div class="card" style="margin-top:clamp(10px,1.5vw,20px)"><h2>Towns we’ve reached</h2><div class="tags">'+d.towns.map(function(t){return '<span class="tag">'+esc(t[0])+' <b>'+t[1]+'</b></span>'}).join('')+'</div></div>';
+  }
+  h+='<div class="foot">From the class CRM · updated '+esc(fmtTime(s.at))+'</div></div>';
+  return h;
+  function stat(n,l){return '<div class="stat"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>'}
+}
+
+function offHtml(){return '<div class="off"><div><b>Nothing is being shown right now.</b>This page stays blank until the presenter turns it on.</div></div>'}
+
+function ctlHtml(){
+  var live=!!state.live;
+  var h='<div class="ctl"><div class="in"><span class="st'+(live?' live':'')+'">'+(live?'Live: everyone with the link sees this':'Off: the link shows a blank page')+'</span>';
+  h+='<label>Show <select id="o-scope"'+(busy?' disabled':'')+'><option value="me"'+(opts.scope==='me'?' selected':'')+'>my businesses</option><option value="all"'+(opts.scope==='all'?' selected':'')+'>the whole class</option></select></label>';
+  h+='<label><input type="checkbox" id="o-list"'+(opts.list?' checked':'')+'> who we’re talking with</label>';
+  h+='<label><input type="checkbox" id="o-act"'+(opts.activity?' checked':'')+'> latest activity</label>';
+  h+='<label><input type="checkbox" id="o-towns"'+(opts.towns?' checked':'')+'> towns</label>';
+  if(live){h+='<button id="b-refresh"'+(busy?' disabled':'')+'>Update numbers</button><button class="stop" id="b-stop"'+(busy?' disabled':'')+'>Stop showing</button>'}
+  else{h+='<button class="go" id="b-go"'+(busy?' disabled':'')+'>Go live</button>'}
+  if(msg)h+='<div class="msg">'+esc(msg)+'</div>';
+  h+='</div></div>';
+  return h;
+}
+
+function render(){
+  var h='';
+  if(isOwner)h+=ctlHtml();
+  h+=state.live&&state.data?showHtml(state):(isOwner?'<div class="off" style="min-height:60vh"><div><b>Preview appears here once you go live.</b>No business data is stored in this page while it’s off.</div></div>':offHtml());
+  if(!isOwner&&state.live)h+='<button class="fs" id="b-fs">Full screen</button>';
+  app.innerHTML=h;
+  bind('b-go',function(){goLive()});
+  bind('b-refresh',function(){goLive()});
+  bind('b-stop',function(){stop()});
+  bind('b-fs',function(){var el=document.documentElement;if(document.fullscreenElement)document.exitFullscreen();else if(el.requestFullscreen)el.requestFullscreen().catch(function(){})});
+  var sc=document.getElementById('o-scope');if(sc)sc.onchange=function(){opts.scope=sc.value};
+  chk('o-list','list');chk('o-act','activity');chk('o-towns','towns');
+}
+function bind(id,fn){var b=document.getElementById(id);if(b)b.onclick=fn}
+function chk(id,k){var b=document.getElementById(id);if(b)b.onchange=function(){opts[k]=b.checked}}
+
+async function call(mcp,tool,input){var r=await mcp.callTool(SERVER,tool,input,{cache:false});return r.payload||{}}
+
+async function gather(){
+  var mcp=await claude.use('mcp');
+  if(!mcp)throw new Error('This view can’t reach the class CRM. Open it in the Claude app or claude.ai while signed in.');
+  var base=opts.scope==='me'?{owner:'me'}:{};
+  var counts={};
+  await Promise.all(STAGES.map(async function(x){
+    var inp=Object.assign({stage:x[0],limit:1},base);if(x[0]==='passed')inp.include_closed=true;
+    var p=await call(mcp,'crm_list_orgs',inp);counts[x[0]]=p.total||0;
+  }));
+  var talksP=await call(mcp,'crm_list_orgs',Object.assign({stage:['talks','applied','selected','active','completed'],limit:50},base));
+  var talks=(talksP.orgs||[]).sort(function(a,b){return String(b.last_touch_at||'').localeCompare(String(a.last_touch_at||''))}).slice(0,8).map(function(o){return {name:o.name,city:o.city||'',stage:o.stage_label||''}});
+  var reachedP=await call(mcp,'crm_list_orgs',Object.assign({stage:['contacted','talks','applied','selected','active','completed','passed'],include_closed:true,limit:200},base));
+  var tc={};(reachedP.orgs||[]).forEach(function(o){if(o.city)tc[o.city]=(tc[o.city]||0)+1});
+  var towns=Object.keys(tc).map(function(k){return [k,tc[k]]}).sort(function(a,b){return b[1]-a[1]||a[0].localeCompare(b[0])}).slice(0,14);
+  var actP=await call(mcp,'crm_recent_activity',{limit:60,include_stage_moves:true});
+  var me=null;try{var who=await call(mcp,'whoami',null);me=who&&(who.name||(who.person&&who.person.name)||(who.user&&who.user.name))}catch(e){}
+  var acts=actP.activity||[];
+  if(opts.scope==='me'){var myIds={};(talksP.orgs||[]).concat(reachedP.orgs||[]).forEach(function(o){myIds[o.id]=1});acts=acts.filter(function(a){return myIds[a.org_id]||(me&&a.by&&a.by.name===me)})}
+  var weekAgo=Date.now()-7*864e5;
+  var touches7=acts.filter(function(a){return a.kind!=='stage'&&new Date(a.occurred_at).getTime()>=weekAgo}).length;
+  var activity=acts.slice(0,6).map(function(a){return {org:a.org||'',what:a.kind==='stage'?('moved to '+stageLabel(a.to_stage)):(a.kind_label||a.kind||'').toLowerCase(),at:a.occurred_at}});
+  return {title:opts.scope==='me'?'My outreach so far':'Class outreach so far',who:opts.scope==='me'&&me?me:'',counts:counts,talks:talks,towns:towns,activity:activity,touches7:touches7};
+}
+function stageLabel(s){for(var i=0;i<STAGES.length;i++)if(STAGES[i][0]===s)return STAGES[i][1];return s||''}
+
+function docFor(s){
+  var reset='';var hs=document.head&&document.head.querySelector('style');if(hs)reset=hs.textContent;
+  var style=document.querySelector('body > style')||document.querySelectorAll('style')[1]||document.querySelector('style');
+  var main=document.getElementById('main').textContent;
+  var title=(document.querySelector('body > title')||document.querySelector('title')).textContent;
+  var json=JSON.stringify(s).replace(/</g,'\\u003c');
+  return '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>'+reset+'</style></head><body>'+
+    '<title>'+esc(title)+'</title>\n<style>'+style.textContent+'</style>\n<script id="state" type="application/json">'+json+'<\/script>\n'+
+    '<div id="app">'+(s.live?'':offHtml())+'</div>\n<script id="main">'+main+'<\/script></body></html>';
+}
+
+async function publish(s){
+  var art=await claude.use('artifact');
+  if(!art)throw new Error('This view can’t update the page. Open it on claude.ai or in the Claude app.');
+  try{await art.publish(docFor(s))}
+  catch(e){
+    if(e&&e.code==='conflict')return;
+    if(e&&(e.code==='not_writer'||e.code==='not_granted'))throw new Error('Only the owner of this page can turn it on or off.');
+    throw new Error((e&&e.message)||'Couldn’t update the page.');
+  }
+}
+
+async function goLive(){
+  if(busy)return;busy=true;msg='Pulling numbers from the CRM…';render();
+  try{
+    var data=await gather();
+    msg='Publishing…';render();
+    await publish({live:true,at:new Date().toISOString(),opts:{scope:opts.scope,list:opts.list,activity:opts.activity,towns:opts.towns},data:data});
+    msg='';
+  }catch(e){msg=(e&&e.message)||'Something went wrong.'}
+  busy=false;render();
+}
+async function stop(){
+  if(busy)return;busy=true;msg='Turning it off…';render();
+  try{await publish({live:false,opts:{scope:opts.scope,list:opts.list,activity:opts.activity,towns:opts.towns}});msg=''}
+  catch(e){msg=(e&&e.message)||'Something went wrong.'}
+  busy=false;render();
+}
+
+render();
+(async function(){
+  try{var u=await claude.use('user');isOwner=u?!!(await u.isOwner()):false}catch(e){isOwner=false}
+  if(isOwner)render();
+})();
+})();
+</script>
