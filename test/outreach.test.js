@@ -222,7 +222,7 @@ test('initial email is personal, honest, short, and has an easy no', () => {
   assert.doesNotMatch(body, /hiring/i, 'never claims they are hiring');
   assert.match(body, /start (my own|something of my own)|run my own business/);
   assert.match(body, /15 minutes/);
-  assert.match(body, /stop by|come by/);
+  assert.doesNotMatch(body, /stop by|come by/, 'no in-person visits unless offer_visit is on');
   assert.match(body, /no worries at all/);
   assert.match(subject, /UConn/);
   assert.match(subject, /Willow Creek Family Dentistry/);
@@ -533,10 +533,12 @@ test('map businesses: no college departments, no CT filings from other towns, cl
   assert.equal(cleanPersonName('Mark Murphy Mark'), 'Mark Murphy');
 });
 
-test('CT businesses from the registry still get the come-by-in-person line', () => {
+test('nearby businesses get the come-by-in-person line only when offer_visit is on', () => {
   const { composeInitial } = require('../lib/outreach/compose');
-  const vernon = composeInitial({ id: 'v', name: 'Forte Accounting, LLC', town: 'Vernon', bucket: 'professional', email: 'a@b.com' }, settings).body;
+  const vernon = composeInitial({ id: 'v', name: 'Forte Accounting, LLC', town: 'Vernon', bucket: 'professional', email: 'a@b.com' }, { ...settings, offer_visit: true }).body;
   assert.match(vernon, /stop by|come by/);
+  const vernonOff = composeInitial({ id: 'v', name: 'Forte Accounting, LLC', town: 'Vernon', bucket: 'professional', email: 'a@b.com' }, settings).body;
+  assert.doesNotMatch(vernonOff, /stop by|come by/);
   const far = composeInitial({ id: 'f', name: 'Far Shop', town: 'Greenwich', bucket: 'retail', email: 'a@b.com' }, settings).body;
   assert.doesNotMatch(far, /stop by/);
   assert.match(far, /Phone or Zoom|call or do Zoom/);

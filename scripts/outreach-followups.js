@@ -47,7 +47,7 @@ function planFollowups(docs, { days = 4, max = 20, now = new Date(), settings = 
       id: p.id, to: [p.email], cc, subject, ...mailBodies(body, settings), thread_id: p.thread_id,
       reply_to_message_id: p.message_id || p.thread_id, after,
       crm: p.crm_org_id ? { org: p.crm_org_id, body: `Follow-up email sent to ${p.email}.\n\n${body}`,
-        update: { next_step: 'No reply to the follow-up yet: try calling or stopping by', next_step_due: addDays(now, 7), notes: crmNotesNow({ ...p, ...after }, settings) } } : null,
+        update: { next_step: 'No reply to the follow-up yet: try calling', next_step_due: addDays(now, 7), notes: crmNotesNow({ ...p, ...after }, settings) } } : null,
     };
   });
 }
