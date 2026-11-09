@@ -1144,7 +1144,25 @@ async function stripLinkedIn() {
   } finally { stripping = false; }
 }
 let migrating = false;
+// He can't visit businesses in person, so waiting drafts that offer to stop by become call or Zoom only.
+const VISIT_LINES = [['Happy to call, do Zoom, or come by.', 'Happy to call or do Zoom.'], ['Phone, Zoom, or I can stop by, whatever works.', 'Phone or Zoom, whatever works.']];
+let migratingVisit = false;
+async function migrateVisits() {
+  if (migratingVisit || !S.db || !S.loaded || !S.metaLoaded || (S.meta.migrations || {}).no_visit_v1 || settings().offer_visit) return;
+  migratingVisit = true;
+  try {
+    let n = 0;
+    for (const p of S.prospects.filter(x => ['ready', 'queued', 'no_email', 'needs_check'].includes(x.status))) {
+      let b = p.body || '';
+      for (const [a, z] of VISIT_LINES) b = b.replace(a, z);
+      if (b !== (p.body || '')) { await patch(p.id, { body: b }).catch(() => {}); n++; }
+    }
+    await S.db.doc('meta/status').update({ migrations: { ...(S.meta.migrations || {}), no_visit_v1: nowIso() } });
+    if (n) toast(`Updated ${n} waiting drafts: they offer a call or Zoom now, not a visit.`);
+  } finally { migratingVisit = false; }
+}
 async function migrateDrafts() {
+  migrateVisits();
   if (migrating || !S.db || !S.loaded || !S.metaLoaded || (S.meta.migrations || {}).subjects_v3) return;
   migrating = true;
   try {
