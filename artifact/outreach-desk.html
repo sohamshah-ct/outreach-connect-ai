@@ -594,6 +594,7 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
             <span class="cchip" id="cCrm"><i></i>Class CRM</span>
             <span class="cchip" id="cGmail"><i></i>Gmail</span>
           </div>
+          <button class="btn sm" id="presentBtn" hidden title="Show this page on the class screen through your presenter link">Present to class</button>
         </div>
       </aside>
     </section>
@@ -3191,6 +3192,82 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && SES && SES.picking) closeSession(); });
 paintFab();
 
+// ---------- present to class ----------
+// Opens the presenter page (a separate artifact, shared by link) and sends it a
+// copy of what this page shows whenever it changes. The presenter publishes the
+// copy so the class screen shows it, and goes blank when you stop. Nothing here
+// is shared: only the copy you're presenting leaves this page.
+const PRESENTER_URL = 'https://claude.ai/artifact/BuCsYLSEBwc32uH8hNqRKD';
+const PRES = { win: null, on: false, timer: null, mo: null, logo: null, last: '' };
+function presPost(msg) {
+  const seen = new Set();
+  const walk = (w, d) => {
+    if (!w || d > 5 || seen.has(w)) return; seen.add(w);
+    try { w.postMessage(msg, '*'); } catch (e) {}
+    let n = 0; try { n = w.frames.length; } catch (e) {}
+    for (let i = 0; i < n; i++) { let f = null; try { f = w.frames[i]; } catch (e) {} walk(f, d + 1); }
+  };
+  walk(PRES.win, 0);
+}
+function presLogo() {
+  if (PRES.logo !== null) return PRES.logo;
+  PRES.logo = '';
+  try { const img = document.querySelector('.logo-tile img'); if (img && img.complete && img.naturalWidth) { const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); PRES.logo = c.toDataURL('image/png'); } } catch (e) { PRES.logo = ''; }
+  return PRES.logo;
+}
+function presSnapshot() {
+  const root = document.body.cloneNode(true);
+  // Canvases (the map) don't copy; swap each for a picture of it.
+  const liveC = document.body.querySelectorAll('canvas'), cloneC = root.querySelectorAll('canvas');
+  cloneC.forEach((c, i) => { try { const img = document.createElement('img'); img.src = liveC[i].toDataURL('image/png'); img.className = c.className; img.id = c.id; img.style.cssText = c.style.cssText; img.style.width = liveC[i].clientWidth + 'px'; img.style.height = liveC[i].clientHeight + 'px'; img.style.maxWidth = '100%'; c.replaceWith(img); } catch (e) {} });
+  // Keep what's typed in boxes and picked in menus.
+  const liveI = document.body.querySelectorAll('input,textarea,select'), cloneI = root.querySelectorAll('input,textarea,select');
+  cloneI.forEach((el, i) => { const L = liveI[i]; if (!L) return; if (el.tagName === 'TEXTAREA') el.textContent = L.value; else if (el.tagName === 'SELECT') { [...el.options].forEach((o, k) => { if (k === L.selectedIndex) o.setAttribute('selected', ''); else o.removeAttribute('selected'); }); } else if (L.type === 'checkbox' || L.type === 'radio') { if (L.checked) el.setAttribute('checked', ''); else el.removeAttribute('checked'); } else el.setAttribute('value', L.value); });
+  root.querySelectorAll('script,#presentBtn,#sessFab,iframe,audio,video').forEach(el => el.remove());
+  const logo = presLogo();
+  root.querySelectorAll('img').forEach(img => { const src = img.getAttribute('src') || ''; if (/connectai\.png$/.test(src)) { if (logo) img.setAttribute('src', logo); else img.remove(); } else if (!/^data:|^https?:/.test(src)) img.remove(); });
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  return { css, body: root.innerHTML, bodyClass: document.body.className, theme: document.documentElement.getAttribute('data-theme') || '', y: Math.round(window.scrollY), dy: Math.round(($('#drawerBody') && $('#drawer').scrollTop) || 0), w: window.innerWidth };
+}
+function presSend(force) {
+  if (!PRES.on) return;
+  if (PRES.win && PRES.win.closed) { presStop(true); return; }
+  const snap = presSnapshot();
+  // The map animates, so leave its picture out when deciding whether anything changed.
+  const plain = snap.body.replace(/data:image\/png;base64,[A-Za-z0-9+/=]+/g, '');
+  let hsh = 0; for (let i = 0; i < plain.length; i++) hsh = (hsh * 31 + plain.charCodeAt(i)) | 0;
+  const key = hsh + ':' + snap.y + ':' + snap.dy + ':' + snap.w;
+  if (!force && key === PRES.last) return;
+  PRES.last = key;
+  presPost({ type: 'outreach-desk-view', live: true, snap });
+}
+function presSoon() { if (!PRES.on || PRES.timer) return; PRES.timer = setTimeout(() => { PRES.timer = null; presSend(false); }, 700); }
+function presPaint() { const b = $('#presentBtn'); if (!b) return; b.textContent = PRES.on ? 'Stop presenting' : 'Present to class'; b.classList.toggle('crimson', PRES.on); }
+function presStart() {
+  if (!PRES.win || PRES.win.closed) PRES.win = window.open(PRESENTER_URL, 'outreach-present');
+  if (!PRES.win) { toast('Your browser blocked the presenter window. Allow pop-ups for this page and try again.', { err: true }); return; }
+  PRES.on = true; PRES.last = ''; presPaint();
+  if (!PRES.mo) PRES.mo = new MutationObserver(presSoon);
+  PRES.mo.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+  toast('Presenting. Keep the presenter window open; the class screen follows this page.');
+  // Keep sending until the presenter says it got it (it takes a moment to load).
+  let tries = 0; const t = setInterval(() => { if (!PRES.on || PRES.ack || ++tries > 40) return clearInterval(t); presSend(true); }, 1500);
+}
+function presStop(quiet) {
+  if (PRES.on) presPost({ type: 'outreach-desk-stop' });
+  PRES.on = false; PRES.ack = false; clearTimeout(PRES.timer); PRES.timer = null; if (PRES.mo) PRES.mo.disconnect(); presPaint();
+  if (!quiet) toast('Stopped. The class screen is blank again.');
+}
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === 'outreach-present-ready' && PRES.on) presSend(true);
+  if (d.type === 'outreach-present-ack' && PRES.on) PRES.ack = true;
+});
+document.addEventListener('scroll', presSoon, { passive: true, capture: true });
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#presentBtn')) { if (PRES.on) presStop(); else presStart(); } });
+window.addEventListener('pagehide', () => { if (PRES.on) presPost({ type: 'outreach-desk-stop' }); });
+
 // ---------- boot ----------
 render();
 (async () => {
@@ -3199,6 +3276,7 @@ render();
   // Anyone but the student gets a view-only desk: their data, but no Gmail, no CRM
   // calls, no Claude, and no writes (the db rules block writes too).
   S.readOnly = !owner;
+  { const pb = $('#presentBtn'); if (pb) pb.hidden = !owner; }
   document.body.classList.toggle('ro', S.readOnly); paintFab();
   const [db, mcp, sample, assets] = await Promise.all([
     window.claude ? window.claude.use('db') : null,

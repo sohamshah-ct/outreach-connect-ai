@@ -46,6 +46,9 @@ button.go{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600
 button.stop{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 button:disabled{opacity:.55;cursor:default}
 .msg{color:var(--ink2);font-size:14px;width:100%}
+.mirror{position:relative;overflow:hidden;width:100%;height:100vh;background:var(--bg)}
+.mirror.owner{height:calc(100vh - 64px)}
+.mirror iframe{border:0;position:absolute;left:0;top:0;transform-origin:0 0;background:#fff}
 .fs{position:fixed;right:12px;bottom:12px;opacity:.35;font-size:13px;padding:6px 10px}
 .fs:hover{opacity:1}
 </style>
@@ -103,35 +106,103 @@ function showHtml(s){
 
 function offHtml(){return '<div class="off"><div><b>Nothing is being shown right now.</b>This page stays blank until the presenter turns it on.</div></div>'}
 
+if(opts.mask===undefined)opts.mask=!(state.opts&&state.opts.mask===false);
+
 function ctlHtml(){
-  var live=!!state.live;
-  var h='<div class="ctl"><div class="in"><span class="st'+(live?' live':'')+'">'+(live?'Live: everyone with the link sees this':'Off: the link shows a blank page')+'</span>';
-  h+='<label>Show <select id="o-scope"'+(busy?' disabled':'')+'><option value="me"'+(opts.scope==='me'?' selected':'')+'>my businesses</option><option value="all"'+(opts.scope==='all'?' selected':'')+'>the whole class</option></select></label>';
-  h+='<label><input type="checkbox" id="o-list"'+(opts.list?' checked':'')+'> who we’re talking with</label>';
-  h+='<label><input type="checkbox" id="o-act"'+(opts.activity?' checked':'')+'> latest activity</label>';
-  h+='<label><input type="checkbox" id="o-towns"'+(opts.towns?' checked':'')+'> towns</label>';
-  if(live){h+='<button id="b-refresh"'+(busy?' disabled':'')+'>Update numbers</button><button class="stop" id="b-stop"'+(busy?' disabled':'')+'>Stop showing</button>'}
-  else{h+='<button class="go" id="b-go"'+(busy?' disabled':'')+'>Go live</button>'}
-  if(msg)h+='<div class="msg">'+esc(msg)+'</div>';
+  var live=!!state.live, mirror=live&&state.mode==='mirror';
+  var h='<div class="ctl"><div class="in"><span class="st'+(live?' live':'')+'">'+(mirror?'Live: showing your desk':live?'Live: showing the CRM summary':'Off: the link shows a blank page')+'</span>';
+  h+='<label><input type="checkbox" id="o-mask"'+(opts.mask?' checked':'')+'> hide email addresses and phone numbers</label>';
+  if(!mirror){
+    h+='<label>Summary of <select id="o-scope"'+(busy?' disabled':'')+'><option value="me"'+(opts.scope==='me'?' selected':'')+'>my businesses</option><option value="all"'+(opts.scope==='all'?' selected':'')+'>the whole class</option></select></label>';
+    h+='<button id="b-go"'+(busy?' disabled':'')+'>'+(live?'Update summary':'Show CRM summary')+'</button>';
+  }
+  if(live)h+='<button class="stop" id="b-stop"'+(busy?' disabled':'')+'>Stop showing</button>';
+  h+='<div class="msg">'+esc(msg||(mirror?'Keep this window open. It follows your desk; the class screen catches up a few seconds behind.':'To show your desk, open it and tap Present to class. This window picks it up on its own.'))+'</div>';
   h+='</div></div>';
   return h;
+}
+
+// --- mirror of the desk ---
+var MASK_RE=/(data:[^"'\s)]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})|((?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b)/gi;
+function mask(html){return html.replace(MASK_RE,function(m,d,em,ph){return d?d:em?'[email hidden]':'[phone hidden]'})}
+function mirrorDoc(m){
+  return '<!doctype html><html'+(m.theme?' data-theme="'+esc(m.theme)+'"':'')+'><head><meta charset="utf-8"><base target="_blank"><style>'+m.css.replace(/<\/style/gi,'<\\/style')+'\nhtml,body{overflow:hidden!important}</style></head><body class="'+esc(m.bodyClass||'')+'">'+m.body+'</body></html>';
+}
+function mirrorHtml(){return '<div class="mirror'+(isOwner?' owner':'')+'" id="mirror"><iframe id="mframe" sandbox="allow-same-origin" title="Outreach desk"></iframe></div>'}
+function fitMirror(){
+  var box=document.getElementById('mirror'),fr=document.getElementById('mframe');
+  if(!box||!fr||!state.mirror)return;
+  var w=Math.max(320,state.mirror.w||1280),s=box.clientWidth/w;
+  fr.style.width=w+'px';fr.style.height=(box.clientHeight/s)+'px';fr.style.transform='scale('+s+')';
+}
+function fillMirror(){
+  var fr=document.getElementById('mframe');if(!fr||!state.mirror)return;
+  fr.onload=function(){try{var d=fr.contentDocument,w=fr.contentWindow;
+    var y=state.mirror.y||0;d.documentElement.style.overflow='hidden';
+    d.body.style.marginTop=(-y)+'px';
+    var dr=d.getElementById('drawer');if(dr)dr.scrollTop=state.mirror.dy||0;
+  }catch(e){}};
+  fr.srcdoc=mirrorDoc(state.mirror);
+  fitMirror();
+}
+window.addEventListener('resize',fitMirror);
+
+function hash(str){var h=0;for(var i=0;i<str.length;i++){h=(h*31+str.charCodeAt(i))|0}return String(h)}
+var pending=null,pubTimer=null;
+function lastPub(){try{return +sessionStorage.getItem('presLast')||0}catch(e){return 0}}
+function setLastPub(){try{sessionStorage.setItem('presLast',String(Date.now()))}catch(e){}}
+function takeSnap(snap){
+  if(!snap||typeof snap.body!=='string'||typeof snap.css!=='string')return;
+  var m={css:snap.css,body:opts.mask?mask(snap.body):snap.body,bodyClass:String(snap.bodyClass||''),theme:String(snap.theme||''),y:+snap.y||0,dy:+snap.dy||0,w:+snap.w||1280};
+  var h=hash(m.body.replace(/data:image\/png;base64,[A-Za-z0-9+\/=]+/g,'')+'|'+m.y+'|'+m.dy+'|'+m.w+'|'+m.css.length+'|'+opts.mask);
+  if(state.live&&state.mode==='mirror'&&state.h===h)return;
+  pending={m:m,h:h};
+  if(pubTimer)return;
+  var wait=Math.max(0,lastPub()+3000-Date.now());
+  pubTimer=setTimeout(flush,wait);
+}
+async function flush(){
+  pubTimer=null;if(!pending)return;
+  var p=pending;pending=null;
+  setLastPub();
+  try{await publish({live:true,mode:'mirror',at:new Date().toISOString(),h:p.h,opts:Object.assign({},opts),mirror:p.m})}
+  catch(e){msg=(e&&e.message)||'Couldn’t update the class screen.';render()}
+}
+var queued=null;
+window.addEventListener('message',function(e){
+  var d=e.data;if(!d||typeof d!=='object')return;
+  if(d.type!=='outreach-desk-view'&&d.type!=='outreach-desk-stop')return;
+  if(!isOwner){queued={d:d,src:e.source};return}
+  handle(d,e.source);
+});
+function handle(d,src){
+  if(d.type==='outreach-desk-view'){try{src&&src.postMessage({type:'outreach-present-ack'},'*')}catch(e){}takeSnap(d.snap)}
+  else if(d.type==='outreach-desk-stop'&&state.live){pending=null;clearTimeout(pubTimer);pubTimer=null;stop()}
+}
+function sayReady(){
+  var targets=[];
+  try{if(window.opener)targets.push(window.opener)}catch(e){}
+  try{if(window.top&&window.top.opener)targets.push(window.top.opener)}catch(e){}
+  targets.forEach(function(t){try{t.postMessage({type:'outreach-present-ready'},'*')}catch(e){}});
 }
 
 function render(){
   var h='';
   if(isOwner)h+=ctlHtml();
-  h+=state.live&&state.data?showHtml(state):(isOwner?'<div class="off" style="min-height:60vh"><div><b>Preview appears here once you go live.</b>No business data is stored in this page while it’s off.</div></div>':offHtml());
+  var mirror=state.live&&state.mode==='mirror'&&state.mirror;
+  if(mirror)h+=mirrorHtml();
+  else if(state.live&&state.data)h+=showHtml(state);
+  else h+=isOwner?'<div class="off" style="min-height:60vh"><div><b>The class screen is blank.</b>No business data is stored in this page while it’s off.</div></div>':offHtml();
   if(!isOwner&&state.live)h+='<button class="fs" id="b-fs">Full screen</button>';
   app.innerHTML=h;
+  if(mirror)fillMirror();
   bind('b-go',function(){goLive()});
-  bind('b-refresh',function(){goLive()});
   bind('b-stop',function(){stop()});
   bind('b-fs',function(){var el=document.documentElement;if(document.fullscreenElement)document.exitFullscreen();else if(el.requestFullscreen)el.requestFullscreen().catch(function(){})});
   var sc=document.getElementById('o-scope');if(sc)sc.onchange=function(){opts.scope=sc.value};
-  chk('o-list','list');chk('o-act','activity');chk('o-towns','towns');
+  var mk=document.getElementById('o-mask');if(mk)mk.onchange=function(){opts.mask=mk.checked;if(state.live&&state.mode==='mirror'&&state.mirror){msg='Applies from the next change on your desk.';render()}};
 }
 function bind(id,fn){var b=document.getElementById(id);if(b)b.onclick=fn}
-function chk(id,k){var b=document.getElementById(id);if(b)b.onchange=function(){opts[k]=b.checked}}
 
 async function call(mcp,tool,input){var r=await mcp.callTool(SERVER,tool,input,{cache:false});return r.payload||{}}
 
@@ -187,14 +258,14 @@ async function goLive(){
   try{
     var data=await gather();
     msg='Publishing…';render();
-    await publish({live:true,at:new Date().toISOString(),opts:{scope:opts.scope,list:opts.list,activity:opts.activity,towns:opts.towns},data:data});
+    await publish({live:true,mode:'summary',at:new Date().toISOString(),opts:Object.assign({},opts),data:data});
     msg='';
   }catch(e){msg=(e&&e.message)||'Something went wrong.'}
   busy=false;render();
 }
 async function stop(){
   if(busy)return;busy=true;msg='Turning it off…';render();
-  try{await publish({live:false,opts:{scope:opts.scope,list:opts.list,activity:opts.activity,towns:opts.towns}});msg=''}
+  try{await publish({live:false,opts:Object.assign({},opts)});msg=''}
   catch(e){msg=(e&&e.message)||'Something went wrong.'}
   busy=false;render();
 }
@@ -202,7 +273,7 @@ async function stop(){
 render();
 (async function(){
   try{var u=await claude.use('user');isOwner=u?!!(await u.isOwner()):false}catch(e){isOwner=false}
-  if(isOwner)render();
+  if(isOwner){render();sayReady();if(queued){handle(queued.d,queued.src);queued=null}}
 })();
 })();
 </script>
