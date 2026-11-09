@@ -550,6 +550,13 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
 .sess-steps div::before{content:"…"; display:inline-block; width:22px; color:var(--muted);}
 .sess-steps div.ok::before{content:"✓"; color:var(--ok);}
 .sess-steps div.bad::before{content:"!"; color:var(--crimson); font-weight:700;}
+.sess-lines{display:flex; flex-direction:column; gap:4px; max-height:60vh; overflow:auto; font-size:15px; line-height:1.5;}
+.sess-lines .ln{display:grid; grid-template-columns:minmax(0,84px) 1fr; gap:10px;}
+.sess-lines .who{font:600 11px/2 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); overflow:hidden; text-overflow:ellipsis;}
+.sess-lines .ln.me .who{color:var(--ink-2);}
+.sess-lines .ln.them .who{color:var(--crimson);}
+.sess-live .sess-lines{max-height:none;}
+.sess-audio{width:100%;}
 </style>
 
 <div class="wrap">
@@ -2633,6 +2640,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let SES = null;     // the open session, or null
 let sesTimer = null, sesWake = null;
+let sesAudio = null; // the recording from the recorder tab, until it's kept on the desk
 
 function sesSave() { if (SES && !SES.done) { try { localStorage.setItem(SES_KEY, JSON.stringify({ ...SES, rec: null, listening: false, interim: '' })); } catch (e) { /* storage blocked */ } } }
 function sesLoad() { try { const j = JSON.parse(localStorage.getItem(SES_KEY) || 'null'); return j && j.target ? j : null; } catch (e) { return null; } }
@@ -2682,7 +2690,7 @@ function closeSession() {
   stopListening();
   clearInterval(sesTimer); sesTimer = null;
   if (sesWake) { sesWake.release().catch(() => {}); sesWake = null; }
-  if (SES && SES.done) sesForget(); else sesSave();
+  if (SES && SES.past) { /* a saved session from before: nothing on this device to clear */ } else if (SES && SES.done) sesForget(); else sesSave();
   SES = null;
   $('#sess').classList.remove('on');
   document.documentElement.style.overflow = '';
@@ -2703,7 +2711,13 @@ function renderSes() {
     root.innerHTML = `<div class="sess-top"><div><div class="eyebrow">New session</div><h2>Who are you talking to?</h2></div><button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
       <div class="sess-pick"><input id="sessQ" type="search" placeholder="Search businesses or people" autocomplete="off"><div class="sess-list" id="sessList"></div>
       <details class="sess-card"><summary style="cursor:pointer">Someone not on this list</summary>
-        <div class="sess-pick" style="margin-top:10px"><input id="sessBiz" placeholder="Business name"><input id="sessWho" placeholder="Their name (optional)"><button class="btn end" data-ses="other">Start</button></div></details></div>`;
+        <div class="sess-pick" style="margin-top:10px"><input id="sessBiz" placeholder="Business name"><input id="sessWho" placeholder="Their name (optional)"><button class="btn end" data-ses="other">Start</button></div></details></div>
+      <div class="sess-pick"><div class="eyebrow" style="margin-top:6px">Past sessions</div><div class="sess-list" id="sessPast"><div class="sess-help">Loading…</div></div></div>`;
+    sesPastList().then(list => {
+      S._sesPast = list;
+      const el = $('#sessPast'); if (!el) return;
+      el.innerHTML = list.length ? list.map(d => `<button data-ses-past="${esc(d.id)}"><b>${esc(d.business || 'Session')}${d.person ? ' · ' + esc(d.person) : ''}</b><span>${esc(new Date(d.ended_at || d.started_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}${d.minutes ? ' · ' + d.minutes + ' min' : ''}${d.audio_id ? ' · ▶' : ''}</span></button>`).join('') : '<div class="sess-help">None yet. Each session you record shows up here with its recording, summary and who said what.</div>';
+    });
     const paint = () => {
       const list = sesCandidates($('#sessQ').value);
       S._sesList = list;
@@ -2752,7 +2766,9 @@ function renderSes() {
 function paintLive() {
   const live = $('#sessLive'); if (!live || !SES) return;
   const transcript = SES.finals.join(' ');
-  live.innerHTML = (transcript ? esc(transcript) : '') + (SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : '') || '<span class="empty">Listening…</span>';
+  const two = Array.isArray(SES.segs) && SES.segs.some(x => x.voice === 2);
+  if (Array.isArray(SES.segs) && SES.segs.length) live.innerHTML = sesLinesHtml(SES.segs.map(x => ({ who: two && x.voice ? 'Voice ' + x.voice : '', text: x.text })));
+  else live.innerHTML = (transcript ? esc(transcript) : '') + (SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : '') || '<span class="empty">Listening…</span>';
   live.scrollTop = live.scrollHeight;
 }
 function paintPill() {
@@ -2815,21 +2831,24 @@ async function endSession() {
   if (SES.runningSince) { SES.elapsedMs += Date.now() - SES.runningSince; SES.runningSince = null; }
   clearInterval(sesTimer); sesTimer = null;
   if (sesWake) { sesWake.release().catch(() => {}); sesWake = null; }
-  SES.endedAt = nowIso();
+  SES.endedAt = SES.endedAt || nowIso();
   SES.out = { state: 'writing', steps: {} };
   sesSave(); renderSes();
   if (!S.sample) { SES.out = { state: 'error', error: 'Claude isn\'t available in this view, so it can\'t write the summary. Your notes are saved on this device.' }; renderSes(); return; }
   const t = SES.target;
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const segs = Array.isArray(SES.segs) && SES.segs.length ? SES.segs : null;
+  const two = !!(segs && SES.voices && SES.voices.two);
+  const voiced = segs ? segs.map(s => `${two ? `(voice ${s.voice || '?'}) ` : ''}${s.text}`).join('\n') : transcript;
   const prompt = [
     `You help ${me().name || 'a UConn student'} (${me().majorCap || 'student'} at UConn) after a ${SES.kind} with a small-business owner. He reached out to learn how they started and run their business; he's also in a UConn class, Connect.AI, where students help local small businesses with AI for free.`,
     `Business: ${t.business}${t.town ? ' (' + t.town + ')' : ''}. Person: ${t.name || 'the owner'}. Length: ${fmtClock(SES.elapsedMs)}. Today: ${today}.`,
-    `TRANSCRIPT (from the browser's speech-to-text; it can be messy, mix up speakers and mishear words, so never treat a garbled phrase as a fact):\n${transcript || '(none)'}`,
+    `TRANSCRIPT (from the browser's speech-to-text, one line per stretch of speech; it can mishear words, so never treat a garbled phrase as a fact${two ? '. The voice numbers come from the sound and are usually right: one voice is him, the other is them' : ''}):\n${voiced || '(none)'}`,
     `HIS NOTES (more reliable than the transcript):\n${notes || '(none)'}`,
     'Write in plain, normal words, like a person, no hype and no filler. Use ONLY what is in the transcript and notes; never invent numbers, names or promises. If something is unclear, leave it out.',
     'Return JSON with exactly these keys:',
     '"summary": 3 to 5 sentences on what was discussed.',
-    '"learned": array of short facts about the business (how it started, team size, customers, tools, what takes their time). Only things actually said.',
+    '"learned": array of short facts about the business (how it started, team size, customers, tools, what takes their time). Only things they actually said.',
     '"action_items": array of things HE needs to do (send something, follow up, intro someone). Empty if none.',
     '"next_step": one line, the single next step with them.',
     '"next_step_due": a date YYYY-MM-DD if one was agreed or is obvious, else "".',
@@ -2837,12 +2856,50 @@ async function endSession() {
     `"thank_you": a short thank-you email body to ${t.name ? t.name.split(' ')[0] : 'them'}: start "Hi ${t.name ? t.name.split(' ')[0] : 'there'},", thank them for their time, mention one specific thing they told him, then (only if connect_ai_fit is yes or maybe) ONE plain sentence like "I'm also in a UConn class called Connect.AI where students help local small businesses with things like that for free. If it sounds useful, I'm happy to send more about it." tied to what they said takes their time. End "Thanks,\\n${me().first}". No links, no pitch beyond that sentence, under 110 words.`,
   ].join('\n\n');
   let out;
-  try { out = await S.sample.json(prompt, { modelTier: 'default', cache: false }); }
-  catch (e) { SES.out = { state: 'error', error: e && e.code === 'not_granted' ? 'Allow Claude for this page to get the summary. Your notes are saved on this device.' : `Claude couldn't write the summary (${(e && e.message) || 'error'}). Your notes are saved on this device; try End again.` }; renderSes(); return; }
+  try {
+    // The summary and the "who said what" run side by side; if naming the voices fails, the summary still comes through.
+    const [sum, lines] = await Promise.allSettled([S.sample.json(prompt, { modelTier: 'default', cache: false }), sesNameVoices(segs, two)]);
+    if (sum.status === 'rejected') throw sum.reason;
+    out = { ...sum.value, lines: lines.status === 'fulfilled' ? lines.value : sesVoiceLines(segs, two) };
+  } catch (e) { SES.out = { state: 'error', error: e && e.code === 'not_granted' ? 'Allow Claude for this page to get the summary. Your notes are saved on this device.' : `Claude couldn't write the summary (${(e && e.message) || 'error'}). Your notes are saved on this device; try End again.` }; renderSes(); return; }
   SES.out = { state: 'done', ...out, steps: {} };
   sesSave(); renderSes();
   sesFinish();
 }
+
+// Who said what: the recorder groups lines by how they sound (Voice 1, Voice 2); Claude reads
+// the conversation and puts names on them, fixing lines the sound got wrong.
+const sesMe = () => me().first || 'Me';
+const sesThem = t => (t && t.name ? t.name.split(' ')[0] : '') || 'Them';
+function sesVoiceLines(segs, two) {
+  if (!segs) return null;
+  return segs.map(s => ({ who: two && s.voice ? `Voice ${s.voice}` : '', text: s.text }));
+}
+async function sesNameVoices(segs, two) {
+  if (!segs || !S.sample) return sesVoiceLines(segs, two);
+  const meN = sesMe(), them = sesThem(SES.target);
+  const words = a => a.reduce((n, s) => n + String(s.text || '').split(/\s+/).filter(Boolean).length, 0);
+  // Long calls go in pieces so each answer stays a manageable size.
+  const pieces = []; let cur = [];
+  for (const s of segs) { cur.push(s); if (words(cur) > 1800) { pieces.push(cur); cur = []; } }
+  if (cur.length) pieces.push(cur);
+  const out = [];
+  for (const piece of pieces) {
+    const p = [
+      `This is ${piece === pieces[0] ? 'a' : 'the next part of a'} ${SES.kind} between ${me().name || meN}, a UConn student, and ${SES.target.name || 'a small-business owner'} of ${SES.target.business}. He asks how they started and run the business; they answer about it.`,
+      `Lines from speech-to-text, in order${two ? ', each with a voice number from the sound (pitch and loudness): usually right, sometimes wrong' : ' (the sound couldn\'t tell the voices apart)'}:`,
+      piece.map((s, i) => `${i + 1}. ${two ? `(voice ${s.voice || '?'}) ` : ''}${s.text}`).join('\n'),
+      `Return JSON {"lines": [{"who": "${meN}" or "${them}", "text": "..."}]} covering every line in order. Decide who said each one from what is said and the voice numbers. If one line clearly holds both people (a question and its answer), split it in two. Keep their exact words; only add punctuation and capital letters. If only one person is talking throughout, label every line with that person.`,
+    ].join('\n\n');
+    const r = await S.sample.json(p, { modelTier: 'default', cache: false });
+    const ls = Array.isArray(r && r.lines) ? r.lines.filter(l => l && typeof l.text === 'string' && l.text.trim()) : [];
+    // If it dropped a lot of the words, trust the sound-only labels for this piece instead.
+    if (!ls.length || words(ls) < words(piece) * 0.75) { out.push(...sesVoiceLines(piece, two)); continue; }
+    out.push(...ls.map(l => ({ who: [meN, them].includes(l.who) ? l.who : (two ? '' : ''), text: l.text.trim() })));
+  }
+  return out;
+}
+function sesLinesText(lines) { return (lines || []).map(l => (l.who ? `${l.who}: ` : '') + l.text).join('\n'); }
 
 function sesDigestText() {
   const o = SES.out, t = SES.target;
@@ -2863,14 +2920,28 @@ async function sesStep(key, fn) {
   sesSave(); renderSes();
 }
 
+// Everything after End, with nothing to tap: keep the recording, save it all, log it in the CRM,
+// put the thank-you in Gmail drafts, and email the student a summary they can answer "send" to.
 async function sesFinish() {
   const t = SES.target, o = SES.out;
-  const id = `${(t.pid || nameKey(t.business).replace(/\s+/g, '-')).slice(0, 60)}-${Date.now()}`;
+  const id = o.docId || `${(t.pid || nameKey(t.business).replace(/\s+/g, '-')).slice(0, 60)}-${Date.now()}`;
+  o.docId = id;
   const digest = sesDigestText();
+  await sesStep('audio', async () => {
+    if (!sesAudio) return false;
+    if (!S.assets) throw new Error('recordings can only be kept when you open the desk yourself');
+    try {
+      const r = await S.assets.upload(sesAudio, { type: /mp4/.test(sesAudio.type) ? 'video/mp4' : 'video/webm' });
+      o.audio = { id: r.id, type: sesAudio.type || 'audio/webm', bytes: r.sizeBytes };
+      sesAudio = null;
+    } catch (e) {
+      throw new Error(e && e.code === 'too_large' ? 'the recording is over 20 MB (about 80 minutes), so only the transcript was kept' : (e && (e.message || e.code)) || 'upload failed');
+    }
+  });
   await sesStep('save', async () => {
     if (!S.db) throw new Error('desk data not connected');
-    await S.db.doc(`sessions/${id}`).set({ business: t.business, person: t.name || null, prospect_id: t.pid, crm_org_id: t.crm_org_id, kind: SES.kind, started_at: SES.startedAt, ended_at: SES.endedAt, minutes: Math.round(SES.elapsedMs / 60000), consent: !!SES.consent, transcript: SES.finals.join(' ').slice(0, 60000), notes: SES.notes || '', summary: o.summary || '', learned: o.learned || [], action_items: o.action_items || [], next_step: o.next_step || '', next_step_due: o.next_step_due || '', connect_ai_fit: o.connect_ai_fit || '', thank_you: o.thank_you || '' });
-    if (t.pid) await patch(t.pid, { last_session_at: SES.endedAt, call_notes: o.summary || '', called_at: SES.endedAt }, `${SES.kind === 'meeting' ? 'Met with' : 'Called'} ${t.name || t.business} (${fmtClock(SES.elapsedMs)})`);
+    await S.db.doc(`sessions/${id}`).set({ business: t.business, person: t.name || null, email: t.email || null, prospect_id: t.pid, crm_org_id: t.crm_org_id, kind: SES.kind, started_at: SES.startedAt, ended_at: SES.endedAt, minutes: Math.round(SES.elapsedMs / 60000), consent: !!SES.consent, transcript: SES.finals.join(' ').slice(0, 60000), lines: (o.lines || []).slice(0, 2500), voices: SES.voices || null, audio_id: (o.audio || {}).id || null, audio_type: (o.audio || {}).type || null, notes: SES.notes || '', summary: o.summary || '', learned: o.learned || [], action_items: o.action_items || [], next_step: o.next_step || '', next_step_due: o.next_step_due || '', connect_ai_fit: o.connect_ai_fit || '', thank_you: o.thank_you || '' });
+    if (t.pid) await patch(t.pid, { last_session_at: SES.endedAt, call_notes: o.summary || '', called_at: SES.endedAt, last_session_id: id }, `${SES.kind === 'meeting' ? 'Met with' : 'Called'} ${t.name || t.business} (${fmtClock(SES.elapsedMs)})`);
   });
   await sesStep('crm', async () => {
     if (!S.mcp) throw new Error('CRM not connected');
@@ -2881,22 +2952,44 @@ async function sesFinish() {
     if (p) await logToCrm({ ...p, crm_org_id: p.crm_org_id || t.crm_org_id }, SES.kind, body, { update, withContact: false });
     else { await S.mcp.callTool(CRM, 'crm_log_touchpoint', { org: t.crm_org_id, kind: SES.kind, body }); await S.mcp.callTool(CRM, 'crm_update_org', { org: t.crm_org_id, ...update }); }
   });
+  await sesStep('draft', async () => {
+    if (!o.thank_you) return false;
+    if (!S.mcp) throw new Error('Gmail not connected');
+    const where = await sesReplyTarget(t);
+    if (!where || !where.email) return false;
+    const res = await S.mcp.callTool(GMAIL, 'create_draft', { to: [where.email], ...sesCc(), subject: /^re:/i.test(t.subject || '') ? t.subject : `Re: ${t.subject || `Thanks from ${me().first}`}`, body: o.thank_you, replyToMessageId: where.messageId });
+    o.draftId = (res.payload || {}).id || null;
+    o.draftText = o.thank_you;
+    if (S.db) await S.db.doc(`sessions/${id}`).update({ thank_you_draft_id: o.draftId, thank_you_to: where.email });
+  });
   await sesStep('email', async () => {
     if (!S.mcp) throw new Error('Gmail not connected');
     const to = me().notify; if (!to.length) return false;
-    await S.mcp.callTool(GMAIL, 'send_message', { to, subject: `Session notes: ${t.name ? t.name + ' at ' : ''}${t.business}`, body: digest + (o.thank_you ? `\n\nThank-you draft (on the desk, one tap to put it in Gmail):\n\n${o.thank_you}` : '') });
+    const subject = o.draftId ? `${sesThem(t) !== 'Them' ? sesThem(t) : 'Your call'} at ${t.business}: thank-you is ready` : `Session notes: ${t.name ? t.name + ' at ' : ''}${t.business}`;
+    const body = digest + (o.thank_you ? (o.draftId
+      ? `\n\nYour thank-you, already in your Gmail drafts:\n\n${o.thank_you}\n\nTo send it: reply send to this email. To change it, reply with what to change.`
+      : `\n\nThank-you (I couldn't find their email, so it's on the desk to copy):\n\n${o.thank_you}`) : '');
+    const res = await S.mcp.callTool(GMAIL, 'send_message', { to, subject, body });
+    const threadId = (res.payload || {}).threadId || null;
+    if (o.draftId && threadId) {
+      if (S.db) await S.db.doc(`sessions/${id}`).update({ reply_draft_id: o.draftId, reply_draft: o.thank_you, reply_notice_thread_id: threadId, reply_draft_at: nowIso() });
+      const p = t.pid ? S.prospects.find(x => x.id === t.pid) : null;
+      // On the business's own record too, unless a reply to them is already waiting there.
+      if (p && !p.reply_draft_id) await patch(p.id, { reply_draft_id: o.draftId, reply_draft: o.thank_you, reply_notice_thread_id: threadId, reply_draft_at: nowIso() }, 'Thank-you ready after the call');
+    }
   });
   SES.done = true;
   sesForget();
   paintFab();
 }
+function sesCc() { const c = me().schoolEmail || me().cc; return c ? { cc: [c] } : {}; }
 
 // Find where to reply: the business's latest message (so the thank-you lands in the same conversation).
 async function sesReplyTarget(t) {
   const mine = new Set([me().schoolEmail, settings().sender_email].map(x => String(x || '').toLowerCase()).filter(Boolean));
   const fromOf = m => String(m.sender || m.from || '').toLowerCase();
   let threadId = t.thread_id;
-  if (!threadId && t.business) {
+  if (!threadId && (t.email || t.business)) {
     const q = t.email ? `(from:${t.email} OR to:${t.email})` : `"${t.business}" "UConn student"`;
     const r = await S.mcp.callTool(GMAIL, 'search_threads', { query: q, pageSize: 1, view: 'THREAD_VIEW_IDS_ONLY' });
     threadId = (((r.payload || {}).threads || [])[0] || {}).id || null;
@@ -2908,9 +3001,10 @@ async function sesReplyTarget(t) {
   const last = theirs[theirs.length - 1] || msgs[msgs.length - 1];
   if (!last) return null;
   const email = t.email || (theirs.length ? fromOf(theirs[theirs.length - 1]) : '') || ((msgs[0] || {}).toRecipients || [])[0] || '';
-  return { messageId: last.id, email };
+  return { messageId: last.id, email: (/<([^>]+)>/.exec(email) || [null, email])[1] };
 }
 
+// No draft yet (or it was thrown away): make one from the box.
 async function sesDraftThanks() {
   const ta = $('#sessThanks'); const body = ta ? ta.value.trim() : '';
   if (!body) return;
@@ -2920,28 +3014,80 @@ async function sesDraftThanks() {
     const t = SES.target;
     const where = await sesReplyTarget(t);
     if (!where || !where.email) throw new Error('couldn\'t find their email');
-    await S.mcp.callTool(GMAIL, 'create_draft', { to: [where.email], ...ccList(), subject: /^re:/i.test(t.subject || '') ? t.subject : `Re: ${t.subject || `Thanks from ${me().first}`}`, body, replyToMessageId: where.messageId });
+    const res = await S.mcp.callTool(GMAIL, 'create_draft', { to: [where.email], ...sesCc(), subject: /^re:/i.test(t.subject || '') ? t.subject : `Re: ${t.subject || `Thanks from ${me().first}`}`, body, replyToMessageId: where.messageId });
+    SES.out.draftId = (res.payload || {}).id || null; SES.out.draftText = body;
   });
+}
+// Send the thank-you from the desk (saving any edits to the draft first).
+async function sesSendThanks() {
+  const o = SES.out; if (!o.draftId) return;
+  const ta = $('#sessThanks'); const body = ta ? ta.value.trim() : o.thank_you;
+  await sesStep('sent', async () => {
+    if (!S.mcp) throw new Error('Gmail not connected');
+    if (body && body !== o.draftText) { await S.mcp.callTool(GMAIL, 'update_draft', { draftId: o.draftId, body }); o.draftText = body; }
+    await S.mcp.callTool(GMAIL, 'send_message', { draftId: o.draftId });
+    o.thank_you = body; o.thanked = true;
+    const at = nowIso();
+    if (S.db && o.docId) await S.db.doc(`sessions/${o.docId}`).update({ thank_you: body, thank_you_sent_at: at, reply_draft_id: null });
+    const p = SES.target.pid ? S.prospects.find(x => x.id === SES.target.pid) : null;
+    if (p) await patch(p.id, { thanked_at: at, ...(p.reply_draft_id === o.draftId ? { reply_draft_id: null, reply_draft: null } : {}) }, 'Sent the thank-you');
+  });
+}
+// The names came out backwards: one tap flips them.
+async function sesSwapNames() {
+  const o = SES.out; if (!o.lines) return;
+  const a = sesMe(), b = sesThem(SES.target);
+  o.lines = o.lines.map(l => ({ ...l, who: l.who === a ? b : l.who === b ? a : l.who === 'Voice 1' ? 'Voice 2' : l.who === 'Voice 2' ? 'Voice 1' : l.who }));
+  sesSave(); renderSes();
+  if (S.db && o.docId) S.db.doc(`sessions/${o.docId}`).update({ lines: o.lines.slice(0, 2500) }).catch(() => {});
+}
+
+function sesLinesHtml(lines, t) {
+  if (!lines || !lines.length) return '';
+  const a = sesMe();
+  return `<div class="sess-lines">${lines.map(l => `<div class="ln ${l.who === a || l.who === 'Voice 1' ? 'me' : l.who ? 'them' : ''}"><span class="who">${esc(l.who || '')}</span><span>${esc(l.text)}</span></div>`).join('')}</div>`;
 }
 
 function renderSesOut(root) {
   const o = SES.out, t = SES.target;
-  const stepLine = (k, label) => { const s = o.steps[k]; const cls = s === 'ok' ? 'ok' : s === 'bad' ? 'bad' : ''; const extra = s === 'bad' ? ` (${esc((o.stepErr || {})[k] || 'failed')})` : s === 'skip' ? ' (skipped: not in the CRM)' : ''; return s ? `<div class="${cls}">${label}${extra}</div>` : ''; };
+  const stepLine = (k, label, skipWhy) => { const s = o.steps[k]; const cls = s === 'ok' ? 'ok' : s === 'bad' ? 'bad' : ''; const extra = s === 'bad' ? ` (${esc((o.stepErr || {})[k] || 'failed')})` : s === 'skip' ? ` (skipped: ${skipWhy || 'not needed'})` : ''; return s ? `<div class="${cls}">${label}${extra}</div>` : ''; };
   const list = a => (a || []).length ? `<ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p style="color:var(--muted)">None.</p>';
+  const sendBtn = o.thanked ? '<button class="btn end" disabled>Sent ✓</button>'
+    : o.draftId ? `<button class="btn end" data-ses="send-thanks" ${o.steps.sent === 'run' ? 'disabled' : ''}>${o.steps.sent === 'run' ? 'Sending…' : 'Send it now'}</button><span class="sess-help" style="align-self:center">Or reply send to the email you got.</span>`
+      : `<button class="btn end" data-ses="draft" ${o.steps.draft === 'run' ? 'disabled' : ''}>Put it in my Gmail drafts</button>`;
   root.innerHTML = `
-    <div class="sess-top"><div><div class="eyebrow">${SES.kind === 'meeting' ? 'Meeting' : 'Call'} ended · ${fmtClock(SES.elapsedMs)}</div><h2>${esc(t.business)}</h2></div>
+    <div class="sess-top"><div><div class="eyebrow">${SES.kind === 'meeting' ? 'Meeting' : 'Call'}${SES.past && SES.pastDate ? ' · ' + esc(new Date(SES.pastDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) : ' ended'} · ${fmtClock(SES.elapsedMs)}</div><h2>${esc(t.business)}</h2></div>
       <button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
-    ${o.state === 'writing' ? '<div class="sess-card"><p>Writing your summary…</p></div>' : ''}
+    ${o.state === 'writing' ? '<div class="sess-card"><p>Putting names on the voices and writing your summary…</p></div>' : ''}
     ${o.state === 'error' ? `<div class="sess-help warn">${esc(o.error)}</div><div class="sess-actions"><button class="btn end" data-ses="retry">Try again</button></div>` : ''}
     ${o.state === 'done' ? `<div class="sess-out">
       <div class="sess-card"><h3>Summary</h3><p>${esc(o.summary || '')}</p></div>
-      <div class="sess-card"><h3>What you learned</h3>${list(o.learned)}</div>
+      <div class="sess-card"><h3>Thank-you email</h3><textarea id="sessThanks" ${o.thanked ? 'readonly' : ''}>${esc(o.thank_you || '')}</textarea>
+        <div class="sess-actions" style="position:static; margin-top:10px">${sendBtn}</div></div>
       <div class="sess-card"><h3>Your action items</h3>${list(o.action_items)}</div>
       <div class="sess-card"><h3>Next step</h3><p>${esc(o.next_step || '')}${o.next_step_due ? ` <span style="color:var(--muted)">· by ${esc(o.next_step_due)}</span>` : ''}</p><p style="color:var(--muted); margin-top:6px">Connect.AI fit: ${esc(o.connect_ai_fit || 'unclear')}</p></div>
-      <div class="sess-card"><h3>Thank-you email</h3><textarea id="sessThanks">${esc(o.thank_you || '')}</textarea>
-        <div class="sess-actions" style="position:static; margin-top:10px"><button class="btn end" data-ses="draft" ${o.steps.draft === 'ok' || o.steps.draft === 'run' ? 'disabled' : ''}>${o.steps.draft === 'ok' ? 'In your Gmail drafts ✓' : 'Put it in my Gmail drafts'}</button></div></div>
-      <div class="sess-card"><h3>Done for you</h3><div class="sess-steps">${stepLine('save', 'Saved on your desk')}${stepLine('crm', 'Logged in the class CRM with the next step')}${stepLine('email', 'Summary emailed to you')}${stepLine('draft', 'Thank-you saved as a Gmail draft (it doesn\'t send until you press Send)')}</div></div>
+      <div class="sess-card"><h3>What you learned</h3>${list(o.learned)}</div>
+      ${o.audio ? `<div class="sess-card"><h3>Recording</h3><audio class="sess-audio" controls preload="none" src="/_blob/${esc(o.audio.id)}"></audio></div>` : ''}
+      ${o.lines && o.lines.length ? `<div class="sess-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline"><h3>Who said what</h3><button class="btn ghost sm" data-ses="swap">Names backwards? Swap</button></div>${sesLinesHtml(o.lines, t)}</div>` : ''}
+      <div class="sess-card"><h3>Done for you</h3><div class="sess-steps">${stepLine('audio', 'Recording kept on your desk', 'no audio from this device')}${stepLine('save', 'Saved on your desk')}${stepLine('crm', 'Logged in the class CRM with the next step', 'not in the CRM')}${stepLine('draft', 'Thank-you put in your Gmail drafts (it doesn\'t send until you say so)', 'couldn\'t find their email')}${stepLine('email', 'Summary emailed to you')}${stepLine('sent', 'Thank-you sent')}</div></div>
     </div>` : ''}`;
+}
+
+// ---------- past sessions ----------
+async function sesPastList() {
+  if (!S.db) return [];
+  try {
+    const snap = await S.db.collection('sessions').orderBy('ended_at', 'desc').limit(40).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) { return []; }
+}
+async function openPastSession(id) {
+  const d = (S._sesPast || []).find(x => x.id === id);
+  if (!d) return;
+  SES = { past: true, pastDate: d.ended_at || d.started_at || null, sid: 'past-' + id, kind: d.kind || 'call', target: { pid: d.prospect_id || null, name: d.person || '', business: d.business || 'Session', email: d.email || '', phone: '', crm_org_id: d.crm_org_id || null, thread_id: null, subject: '', town: '' }, elapsedMs: (d.minutes || 0) * 60000, finals: [d.transcript || ''], notes: d.notes || '', done: true,
+    out: { state: 'done', docId: id, steps: {}, summary: d.summary, learned: d.learned, action_items: d.action_items, next_step: d.next_step, next_step_due: d.next_step_due, connect_ai_fit: d.connect_ai_fit, thank_you: d.thank_you, lines: d.lines && d.lines.length ? d.lines : (d.transcript ? [{ who: '', text: d.transcript }] : null), audio: d.audio_id ? { id: d.audio_id, type: d.audio_type } : null, draftId: d.reply_draft_id || d.thank_you_draft_id || null, draftText: d.reply_draft || d.thank_you, thanked: !!d.thank_you_sent_at } };
+  if (SES.out.thanked) SES.out.draftId = null;
+  renderSes();
 }
 
 function openRecorder() {
@@ -2954,20 +3100,23 @@ function openRecorder() {
   if (!w) { toast('Your browser blocked the new tab. Allow pop-ups for claude.ai and tap Record again.', { err: true }); return; }
   SES.external = true; sesBegin(); renderSes(); sesSave();
 }
-// The recorder tab sends what it writes down as it goes, then the whole thing when you tap End there.
+// The recorder tab sends what it writes down as it goes, then the whole thing (with the audio) when you tap End there.
 window.addEventListener('message', e => {
   const d = e.data;
   if (!d || d.app !== 'outreach-rec' || !d.sid) return;
   if (!SES || SES.sid !== d.sid) { const sv = sesLoad(); if (sv && sv.sid === d.sid) { openSession(null); } else return; }
-  if (d.type === 'live') { SES.finals = d.transcript ? [d.transcript] : []; if (typeof d.notes === 'string' && d.notes) SES.recNotes = d.notes; paintLive(); sesSave(); return; }
+  if (d.type === 'live') { SES.finals = d.transcript ? [d.transcript] : []; if (Array.isArray(d.segs)) SES.segs = d.segs; if (typeof d.notes === 'string' && d.notes) SES.recNotes = d.notes; paintLive(); sesSave(); return; }
   if (d.type === 'done') {
     try { e.source && e.source.postMessage({ app: 'outreach-rec', type: 'ack', sid: d.sid }, '*'); } catch (err) { /* tab closed */ }
     if (SES.out) return;
+    if (typeof Blob !== 'undefined' && d.audio instanceof Blob && d.audio.size) sesAudio = d.audio;
     sesImport(d);
   }
 });
 function sesImport(d) {
   SES.finals = d.transcript ? [d.transcript] : [];
+  SES.segs = Array.isArray(d.segs) && d.segs.length ? d.segs : null;
+  SES.voices = d.voices || null;
   SES.notes = [SES.notes, d.notes].map(x => String(x || '').trim()).filter(Boolean).join('\n');
   SES.elapsedMs = Number(d.ms) || SES.elapsedMs; SES.runningSince = null;
   SES.startedAt = SES.startedAt || d.startedAt; SES.started = true; SES.external = false;
@@ -3000,6 +3149,8 @@ document.addEventListener('click', e => {
   if (s) { const p = S.prospects.find(x => x.id === s.dataset.session); if (p) { closeDrawer(); openSession(targetFromProspect(p)); } return; }
   if (e.target.closest('#sessFab')) { openSession(null); return; }
   if (!SES) return;
+  const past = e.target.closest('[data-ses-past]');
+  if (past) { openPastSession(past.dataset.sesPast); return; }
   const pick = e.target.closest('[data-ses-pick]');
   if (pick) { const c = (S._sesList || [])[Number(pick.dataset.sesPick)]; if (c) { SES = null; sesForget(); openSession(c.target()); } return; }
   const kind = e.target.closest('[data-ses-kind]');
@@ -3016,6 +3167,8 @@ document.addEventListener('click', e => {
   else if (act === 'end') { if (!SES.ending) { SES.ending = true; renderSes(); setTimeout(() => { if (SES && SES.ending && !SES.out) { SES.ending = false; renderSes(); } }, 4000); return; } SES.ending = false; endSession(); }
   else if (act === 'retry') { SES.out = null; endSession(); }
   else if (act === 'draft') sesDraftThanks();
+  else if (act === 'send-thanks') { if (!SES.out.sureSend) { SES.out.sureSend = true; a.textContent = 'Tap again to send'; setTimeout(() => { if (SES && SES.out) { SES.out.sureSend = false; renderSes(); } }, 4000); return; } SES.out.sureSend = false; sesSendThanks(); }
+  else if (act === 'swap') sesSwapNames();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && SES && SES.picking) closeSession(); });
 paintFab();
@@ -3029,12 +3182,13 @@ render();
   // calls, no Claude, and no writes (the db rules block writes too).
   S.readOnly = !owner;
   document.body.classList.toggle('ro', S.readOnly); paintFab();
-  const [db, mcp, sample] = await Promise.all([
+  const [db, mcp, sample, assets] = await Promise.all([
     window.claude ? window.claude.use('db') : null,
     window.claude && owner ? window.claude.use('mcp') : null,
     window.claude && owner ? window.claude.use('sample') : null,
+    window.claude && owner ? window.claude.use('assets') : null,
   ]);
-  S.db = S.readOnly ? readOnlyDb(db) : db; S.mcp = mcp; S.sample = sample;
+  S.db = S.readOnly ? readOnlyDb(db) : db; S.mcp = mcp; S.sample = sample; S.assets = assets;
   if (!db) { S.dbState = 'bad'; S.loaded = true; render(); }
   else {
     let backfilled = false, deepLinked = false;

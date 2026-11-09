@@ -28,6 +28,11 @@ h1{margin:4px 0 0;font-size:clamp(26px,6vw,36px);line-height:1.1;letter-spacing:
 .transcript{flex:1;min-height:220px;border:1px solid var(--line);border-radius:16px;padding:14px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:17px;line-height:1.6}
 .transcript .interim{color:var(--muted)}
 .transcript .empty{color:var(--muted);font-size:15px}
+.transcript .ln{display:block;margin:0 0 6px}
+.transcript .tag{display:inline-block;min-width:64px;font:600 11px/1.9 ui-monospace,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.transcript .v1 .tag{color:var(--ink-2)}
+.transcript .v2 .tag{color:var(--red)}
+.voices{font-size:14px;color:var(--muted)}
 textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;font-size:16px;background:transparent;color:var(--ink);resize:vertical}
 .note{font-size:14px;color:var(--muted)}
 .note.warn{color:var(--warn);background:var(--warn-soft);border-radius:12px;padding:10px 12px}
@@ -45,11 +50,13 @@ a{color:inherit}
   <div><div class="eyebrow" id="kind">Call</div><h1 id="biz">Session</h1><div class="who" id="who"></div></div>
   <div class="bar"><span class="clock" id="clock">0:00</span><span class="pill" id="pill"><i></i><span>Not started</span></span></div>
   <label class="consent" id="consentBox"><input type="checkbox" id="consent"><span><b id="okWho">They</b> said it's OK to record. <small>Connecticut requires their OK before recording a phone call. Ask first.</small></span></label>
-  <div class="note" id="msg">Tap Record once they've said OK. Keep this tab open. On a phone call, put it on speaker so the mic hears both of you. Only text is kept, never audio.</div>
+  <div class="note" id="msg">Tap Record once they've said OK. Keep this tab open. On a phone call, put it on speaker so the mic hears both of you. The audio is saved to your desk with the transcript.</div>
+  <div class="voices" id="voices"></div>
   <div class="transcript" id="live"><span class="empty">What's said shows up here.</span></div>
   <textarea id="notes" placeholder="Your notes (optional): anything the transcript might miss"></textarea>
   <div class="actions"><button class="rec" id="rec">● Record</button><button class="end" id="end" disabled>End and send to my desk</button></div>
 </main>
+<script src="voices.js"></script>
 <script>
 (() => {
 'use strict';
@@ -66,11 +73,24 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const V = window.Voices;
 
-let st = { finals: [], interim: '', notes: '', elapsed: 0, since: null, startedAt: null, consent: false, sent: false };
-try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && !saved.sent) st = { ...st, ...saved, interim: '', since: null }; } catch (e) {}
+// segs: one entry per stretch the browser writes down: {t0, t1, text, f (pitch), e (loudness)}.
+let st = { segs: [], interim: '', notes: '', elapsed: 0, since: null, startedAt: null, consent: false, sent: false };
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (saved && !saved.sent) {
+    st = { ...st, ...saved, interim: '', since: null };
+    if (!st.segs && Array.isArray(saved.finals)) st.segs = saved.finals.map(text => ({ t0: 0, t1: 0, text, f: 0, e: 0 }));
+    delete st.finals;
+  }
+} catch (e) {}
 let rec = null, listening = false, wake = null, timer = null;
+// Audio: the mic stream, the recording, and pitch/loudness readings for telling voices apart.
+let stream = null, actx = null, analyser = null, sampler = null, mr = null, chunks = [], mime = '', frames = [], audioOff = false, audioLost = false;
+let segStart = null, lastT1 = 0;
 if (qs.get('consent') === '1') st.consent = true;
+if (st.startedAt && st.segs.length) audioLost = true; // reopened mid-session: audio from before is gone, the text isn't
 
 $('biz').textContent = biz;
 $('who').textContent = person;
@@ -84,16 +104,20 @@ document.title = `Recording · ${biz}`;
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ ...st, interim: '', since: null, elapsed: elapsed() })); } catch (e) {} };
 const elapsed = () => st.elapsed + (st.since ? Date.now() - st.since : 0);
 const fmt = ms => { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0'); };
-const transcript = () => st.finals.join(' ').trim();
+const transcript = () => st.segs.map(s => s.text).join(' ').trim();
+const split = () => V ? V.splitVoices(st.segs) : { voices: st.segs.map(() => null), two: false };
+
 function paint() {
-  const t = transcript();
-  $('live').innerHTML = (t ? esc(t) : '') + (st.interim ? ` <span class="interim">${esc(st.interim)}</span>` : '') || '<span class="empty">What\'s said shows up here.</span>';
+  const sv = split();
+  const lines = st.segs.map((s, i) => { const v = sv.voices[i]; return `<span class="ln${v ? ' v' + v : ''}">${sv.two ? `<span class="tag">${v ? 'Voice ' + v : '?'}</span>` : ''}${esc(s.text)}</span>`; }).join('');
+  $('live').innerHTML = (lines + (st.interim ? `<span class="ln interim">${esc(st.interim)}</span>` : '')) || '<span class="empty">What\'s said shows up here.</span>';
   $('live').scrollTop = $('live').scrollHeight;
+  $('voices').textContent = !st.segs.length ? '' : sv.two ? 'Hearing two voices. Your desk puts names on them when you end.' : (audioOff || !stream && !listening) ? '' : 'One voice so far. A second shows up once the other person has said a few things.';
   $('pill').className = 'pill' + (listening ? ' live' : '');
   $('pill').innerHTML = `<i></i><span>${listening ? 'Recording' : st.startedAt ? 'Paused' : 'Not started'}</span>`;
   $('rec').textContent = listening ? 'Pause' : (st.startedAt ? '● Keep recording' : '● Record');
   $('rec').className = listening ? '' : 'rec';
-  $('end').disabled = !(t || $('notes').value.trim()) || st.sent;
+  $('end').disabled = !(transcript() || $('notes').value.trim()) || st.sent;
   $('clock').textContent = fmt(elapsed());
 }
 
@@ -102,35 +126,98 @@ let lastLive = 0;
 function sendLive() {
   if (!window.opener || Date.now() - lastLive < 1500) return;
   lastLive = Date.now();
-  try { window.opener.postMessage({ app: 'outreach-rec', type: 'live', sid, transcript: transcript(), notes: $('notes').value, ms: elapsed() }, '*'); } catch (e) {}
+  const sv = split();
+  try { window.opener.postMessage({ app: 'outreach-rec', type: 'live', sid, transcript: transcript(), segs: st.segs.map((s, i) => ({ text: s.text, voice: sv.voices[i] })), notes: $('notes').value, ms: elapsed() }, '*'); } catch (e) {}
 }
 
 function msg(text, cls) { $('msg').className = 'note' + (cls ? ' ' + cls : ''); $('msg').innerHTML = text; }
 
+async function openAudio() {
+  if (stream) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true;
+  try {
+    // No echo cancelling or volume leveling: those would strip the voice coming out of a speaker and hide who's louder.
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch (e) {
+    msg(`The microphone is blocked (${esc(e.name || 'error')}). Click the mic or lock icon in the address bar, allow the microphone for this page, then tap Record again.`, 'warn');
+    return false;
+  }
+  if (audioOff) { stream.getTracks().forEach(t => t.stop()); stream = null; return true; }
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    actx = new AC();
+    analyser = actx.createAnalyser(); analyser.fftSize = 2048;
+    actx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    sampler = setInterval(() => {
+      if (!listening || !V) return;
+      analyser.getFloatTimeDomainData(buf);
+      const r = V.pitchOf(buf, actx.sampleRate);
+      frames.push({ t: elapsed(), f: r.f, rms: r.rms });
+      if (frames.length > 200000) frames.splice(0, 50000);
+    }, 50);
+  } catch (e) { /* no pitch readings: voices just won't be split */ }
+  try {
+    if (window.MediaRecorder) {
+      mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+      mr = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 });
+      mime = mr.mimeType || mime;
+      mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    }
+  } catch (e) { mr = null; }
+  return true;
+}
+function closeAudio() {
+  clearInterval(sampler); sampler = null;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  if (actx) actx.close().catch(() => {});
+  actx = null; analyser = null;
+}
+// Some phones can't record audio and run speech-to-text at the same time: keep the text.
+function dropAudio() {
+  audioOff = true;
+  if (mr && mr.state !== 'inactive') { try { mr.stop(); } catch (e) {} }
+  closeAudio();
+}
+
 async function start() {
   if (!st.consent) { msg('Tick the box once they\'ve said it\'s OK to record.', 'warn'); return; }
   if (!SR) { msg('This browser can\'t turn speech into text. Open this page in Google Chrome (or Safari on a Mac or iPhone).', 'warn'); return; }
-  // Ask for the mic first so the browser shows its prompt, and so a block shows up as a clear message.
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try { const m = await navigator.mediaDevices.getUserMedia({ audio: true }); m.getTracks().forEach(t => t.stop()); }
-    catch (e) { msg(`The microphone is blocked (${esc(e.name || 'error')}). Click the mic or lock icon in the address bar, allow the microphone for this page, then tap Record again.`, 'warn'); paint(); return; }
-  }
+  if (!(await openAudio())) { paint(); return; }
   const r = new SR();
   r.continuous = !IOS; r.interimResults = true; r.lang = 'en-US';
   let heard = false;
-  r.onstart = () => { msg('Listening. Talk normally; words show up below within a second or two. Keep this tab open until you tap End.'); };
+  r.onstart = () => { msg(audioOff ? 'Listening (text only on this device). Keep this tab open until you tap End.' : 'Listening and recording. Words show up below within a second or two. Keep this tab open until you tap End.'); };
   r.onresult = e => {
     heard = true;
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const res = e.results[i];
-      if (res.isFinal) { const tx = String(res[0].transcript || '').trim(); if (tx && st.finals[st.finals.length - 1] !== tx) st.finals.push(tx); }
-      else interim += res[0].transcript;
+      if (res.isFinal) {
+        const tx = String(res[0].transcript || '').trim();
+        const last = st.segs[st.segs.length - 1];
+        if (tx && (!last || last.text !== tx)) {
+          const t1 = elapsed();
+          const t0 = Math.max(lastT1, (segStart ?? t1) - 700);
+          st.segs.push({ t0, t1, text: tx, ...(V ? V.segFeatures(frames, t0, t1) : { f: 0, e: 0 }) });
+          lastT1 = t1;
+        }
+        segStart = null;
+      } else interim += res[0].transcript;
     }
+    if (interim && segStart === null) segStart = elapsed();
     st.interim = interim; paint(); save(); sendLive();
   };
   r.onerror = e => {
     if (e.error === 'no-speech' || e.error === 'aborted') return; // silence; it restarts on its own
+    if (e.error === 'audio-capture' && stream && !audioOff) {
+      // The recording is holding the mic: let speech-to-text have it.
+      dropAudio();
+      msg('This device can\'t record audio and write down words at the same time, so it\'s keeping the words only.', 'warn');
+      setTimeout(() => { if (listening && rec === r) { try { r.start(); } catch (err) {} } }, 300);
+      return;
+    }
     listening = false; rec = null;
     if (st.since) { st.elapsed += Date.now() - st.since; st.since = null; }
     const why = {
@@ -140,6 +227,7 @@ async function start() {
       'audio-capture': 'No microphone found, or another app (like a call on this device) is using it.',
       'language-not-supported': 'English speech-to-text isn\'t available in this browser. Try Google Chrome.',
     }[e.error] || `Speech-to-text stopped (${esc(e.error)}). Try Google Chrome.`;
+    if (mr && mr.state === 'recording') { try { mr.pause(); } catch (err) {} }
     msg(why, 'warn'); paint(); save();
   };
   r.onend = () => { if (listening && rec === r) setTimeout(() => { try { r.start(); } catch (err) {} }, 150); };
@@ -148,6 +236,8 @@ async function start() {
   st.since = Date.now();
   try { r.start(); }
   catch (e) { listening = false; rec = null; st.since = null; msg(`Couldn't start listening (${esc(e.name || e.message || 'error')}). Tap Record again.`, 'warn'); paint(); return; }
+  if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+  if (mr) { try { if (mr.state === 'inactive') mr.start(5000); else if (mr.state === 'paused') mr.resume(); } catch (e) {} }
   if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { wake = w; }).catch(() => {});
   clearInterval(timer); timer = setInterval(() => { $('clock').textContent = fmt(elapsed()); }, 1000);
   setTimeout(() => { if (listening && !heard && !transcript()) msg('Listening, but nothing has come through yet. Say a few words. If nothing shows up in 10 seconds, this browser\'s speech-to-text isn\'t working here: open this page in Google Chrome.'); }, 8000);
@@ -155,18 +245,29 @@ async function start() {
 }
 function pause() {
   listening = false;
-  if (st.interim) { st.finals.push(st.interim.trim()); st.interim = ''; }
+  if (st.interim) { const t1 = elapsed(); st.segs.push({ t0: Math.max(lastT1, (segStart ?? t1) - 700), t1, text: st.interim.trim(), ...(V ? V.segFeatures(frames, Math.max(lastT1, (segStart ?? t1) - 700), t1) : { f: 0, e: 0 }) }); lastT1 = t1; st.interim = ''; segStart = null; }
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; }
   if (st.since) { st.elapsed += Date.now() - st.since; st.since = null; }
+  if (mr && mr.state === 'recording') { try { mr.pause(); } catch (e) {} }
+  if (actx && actx.state === 'running') actx.suspend().catch(() => {});
   clearInterval(timer); if (wake) { wake.release().catch(() => {}); wake = null; }
   paint(); save();
+}
+
+// Stop the recording and hand back the audio file (or null).
+function finishAudio() {
+  return new Promise(res => {
+    if (!mr || mr.state === 'inactive') { closeAudio(); res(chunks.length ? new Blob(chunks, { type: (mime || 'audio/webm').split(';')[0] }) : null); return; }
+    mr.onstop = () => { closeAudio(); res(chunks.length ? new Blob(chunks, { type: (mime || 'audio/webm').split(';')[0] }) : null); };
+    try { mr.stop(); } catch (e) { closeAudio(); res(null); }
+  });
 }
 
 async function pack(obj) {
   const json = JSON.stringify(obj);
   if (window.CompressionStream) {
-    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    const s = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const bytes = new Uint8Array(await new Response(s).arrayBuffer());
     let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return 'z' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -175,37 +276,46 @@ async function pack(obj) {
 
 async function end() {
   pause();
-  const payload = { app: 'outreach-rec', type: 'done', sid, transcript: transcript(), notes: $('notes').value.trim(), ms: elapsed(), startedAt: st.startedAt, kind, consent: !!st.consent, target };
-  // 1) Straight back to the desk tab that opened this one.
+  msg('Finishing up…');
+  const audio = await finishAudio();
+  const sv = split();
+  const segs = st.segs.map((s, i) => ({ t0: s.t0, t1: s.t1, text: s.text, voice: sv.voices[i] }));
+  const payload = { app: 'outreach-rec', type: 'done', sid, transcript: transcript(), segs, voices: { two: sv.two, pitch: sv.pitch || [], db: sv.db || 0 }, notes: $('notes').value.trim(), ms: elapsed(), startedAt: st.startedAt, kind, consent: !!st.consent, target, audioPartial: audioLost };
+  // 1) Straight back to the desk tab that opened this one, with the audio file.
   let acked = false;
   const onAck = e => { if (e.data && e.data.app === 'outreach-rec' && e.data.type === 'ack' && e.data.sid === sid) acked = true; };
   window.addEventListener('message', onAck);
-  if (window.opener) { try { window.opener.postMessage(payload, '*'); } catch (e) {} }
-  for (let i = 0; i < 20 && !acked; i++) await new Promise(r => setTimeout(r, 100));
+  if (window.opener) { try { window.opener.postMessage({ ...payload, audio }, '*'); } catch (e) { try { window.opener.postMessage(payload, '*'); } catch (err) {} } }
+  for (let i = 0; i < 30 && !acked; i++) await new Promise(r => setTimeout(r, 100));
   window.removeEventListener('message', onAck);
   if (acked) {
     st.sent = true; save();
-    msg('Sent to your desk ✓ It\'s writing the summary now. You can close this tab.', 'ok');
+    msg('Sent to your desk ✓ It\'s putting names on the voices and writing the summary now. You can close this tab.', 'ok');
     paint();
     setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
     return;
   }
   // 2) The desk tab isn't reachable (e.g. it was opened from the Claude app): reopen the desk with the session attached.
+  //    The audio file is too big for a link, so offer to save it here.
   const packed = await pack(payload);
   const mailBody = `${kind === 'meeting' ? 'Meeting' : 'Call'} with ${person || 'the owner'} at ${biz} (${fmt(payload.ms)})\n\nTranscript:\n${payload.transcript}\n\nMy notes:\n${payload.notes}`;
   const mailHref = notify ? `mailto:${encodeURIComponent(notify)}?subject=${encodeURIComponent('Call notes: ' + (person || biz) + ' at ' + biz)}&body=${encodeURIComponent(mailBody.slice(0, 1800))}` : '';
   st.sent = true; save(); paint();
-  msg(`${ret ? `<a href="${ret}#ses=${packed}"><b>Open your desk with this session</b></a>: it writes the summary and does the rest.` : ''}${mailHref ? `${ret ? '<br><br>Or ' : ''}<a href="${mailHref}">email it to yourself as call notes</a> and it's handled at the next check.` : ''}`, 'ok');
-  if (ret) location.href = `${ret}#ses=${packed}`;
+  const ext = audio && /mp4/.test(audio.type) ? 'm4a' : 'webm';
+  const fname = `${biz.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'call'}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+  const saveLink = audio ? `<a href="${URL.createObjectURL(audio)}" download="${fname}"><b>Save the recording</b></a> (your desk opened in another app, so the audio can't go to it directly).<br><br>Then ` : '';
+  msg(`${saveLink}${ret ? `<a href="${ret}#ses=${packed}"><b>${audio ? 'open' : 'Open'} your desk with this session</b></a>: it writes the summary and does the rest.` : ''}${mailHref ? `${ret ? '<br><br>Or ' : ''}<a href="${mailHref}">email it to yourself as call notes</a> and it's handled at the next check.` : ''}`, 'ok');
+  if (ret && !audio) location.href = `${ret}#ses=${packed}`;
 }
 
 $('consent').addEventListener('change', e => { st.consent = e.target.checked; $('consentBox').classList.toggle('ok', st.consent); if (!st.consent && listening) pause(); save(); paint(); });
 $('rec').addEventListener('click', () => listening ? pause() : start());
 $('end').addEventListener('click', () => { if ($('end').dataset.sure) end(); else { $('end').dataset.sure = '1'; $('end').textContent = 'Tap again to end'; setTimeout(() => { delete $('end').dataset.sure; $('end').textContent = 'End and send to my desk'; }, 4000); } });
 $('notes').addEventListener('input', () => { st.notes = $('notes').value; save(); paint(); sendLive(); });
-window.addEventListener('beforeunload', e => { if (listening) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (listening || (mr && mr.state !== 'inactive')) { e.preventDefault(); e.returnValue = ''; } });
 paint();
 if (!st.startedAt) msg(SR ? 'Tap Record to start. Your browser will ask to use the microphone the first time.' : 'This browser can\'t turn speech into text. Open this page in Google Chrome (or Safari on a Mac or iPhone).', SR ? '' : 'warn');
+else if (audioLost) msg('This page was reopened, so the audio from before is gone. The words are kept, and Record picks up from here.');
 })();
 </script>
 </body>
