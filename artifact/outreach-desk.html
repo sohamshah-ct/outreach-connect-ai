@@ -795,6 +795,10 @@ function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return d
 
 // ---------- toasts ----------
 function toast(msg, { err = false, undo = null } = {}) {
+  const box = $('#toasts');
+  // Same message already showing: don't stack another copy. Never more than 3 at once.
+  if ([...box.children].some(t => t.firstChild && t.firstChild.nodeValue === msg)) return;
+  while (box.children.length >= 3) box.firstElementChild.remove();
   const el = document.createElement('div');
   el.className = 'toast' + (err ? ' err' : '');
   el.textContent = msg;
@@ -862,6 +866,19 @@ async function logToCrm(p, kind, body, extra = {}) {
   if (!orgId) {
     const existing = crmMatch(p.name);
     if (existing) orgId = existing.id;
+  }
+  if (!orgId) {
+    // The page's copy of the class list holds at most 200 businesses, so ask the CRM by name before adding.
+    try {
+      const found = await S.mcp.callTool(CRM, 'crm_list_orgs', { q: shortName(p.name), include_closed: true, limit: 5 }, { cache: false });
+      const hit = ((found.payload || {}).orgs || []).find(o => nameKey(o.name) === nameKey(p.name) || nameKey(o.name) === nameKey(shortName(p.name)));
+      if (hit) {
+        if (hit.owner && S.crmMine && !S.crmMine.some(o => o.id === hit.id) && extra.stage === 'lead') {
+          const err = new Error(`${shortName(p.name)} is already in the class CRM.`); err.duplicate = true; err.existingId = hit.id; throw err;
+        }
+        orgId = hit.id;
+      }
+    } catch (e) { if (e && e.duplicate) throw e; }
   }
   if (!orgId) {
     const f = p.facts || {};
