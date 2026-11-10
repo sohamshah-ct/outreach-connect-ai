@@ -44,7 +44,7 @@ function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
   const texts = slots.map(slotText);
   const body = [
     name ? `Hi ${name},` : 'Hi,',
-    `Thanks so much for getting back to me, I really appreciate you making time. Would any of these work for you?\n\n${texts.map(t => `- ${t}`).join('\n')}\n\nIf another time is easier, just let me know what works better for you. Teams, Zoom or phone all work for me, and I'm happy to send the invite.${phone ? ` If it's easier to just call, my number is ${phone}.` : ''}`,
+    `Thanks so much for getting back to me, I really appreciate you making time. Would any of these work for you?\n\n${texts.map(t => `- ${t}`).join('\n')}\n\nIf another time is easier, just let me know what works better for you. ${String(prof.video_apps || 'Teams or Google Meet').replace(' or ', ', ')} or phone all work for me, and I'm happy to send the invite.${phone ? ` If it's easier to just call, my number is ${phone}.` : ''}`,
     `Really looking forward to hearing how ${biz} got started.`,
     me ? `Thanks,\n${me}` : 'Thanks,',
   ].join('\n\n');

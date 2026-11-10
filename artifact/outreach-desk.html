@@ -766,7 +766,7 @@ const S = {
   reviewId: null, drawerId: null, confirming: null,
   sort: { key: 'fit_score', dir: -1 },
   busy: new Set(), sendingQueue: false,
-  threads: {}, threadLoading: new Set(), replyDrafts: {}, working: {},
+  threads: {}, threadLoading: new Set(), replyDrafts: {}, working: {}, gEdits: {},
 };
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -1053,10 +1053,10 @@ ${conversationText(p)}
 
 When ${m.first} is free: ${s.free_times || DEFAULTS.free_times}.
 The next weekdays are: ${nextWeekdays(6).join('; ')}.
-Ways to talk: phone or Zoom${near ? `, or they can come by in person since they're in Storrs, close to ${p.town}` : ''}.
+Ways to talk: phone, ${s.video_apps || 'Teams or Google Meet'} (never Zoom; ${m.first} doesn't use it). ${m.first} can't visit in person.
 
 Write ${m.first}'s reply to their latest message:
-- If they're open to talking, thank them, and offer two or three specific times drawn from when they're free on the dates above (e.g. "Tuesday, Nov 4 at 3pm"), say it'd take 15 to 20 minutes, and ask which works and whether they prefer ${near ? 'phone, Zoom or them stopping by' : 'phone or Zoom'}. If they already suggested a time, just confirm it.
+- If they're open to talking, thank them, and offer two or three specific times drawn from when they're free on the dates above (e.g. "Tuesday, Nov 4 at 3pm"), say it'd take 15 to 20 minutes, and ask which works and whether they prefer phone or ${s.video_apps || 'Teams or Google Meet'}. If they already suggested a time, just confirm it.
 - If they asked questions, answer them plainly and honestly with only what's above. It's free and there's no contract.${inClassArea(p) ? `
 - Only if they asked about Connect.AI, asked how it works, or said they'd like help: add that the easiest next step is a short form at connect-ai.world/apply (about 3 minutes, and they get a free AI-readiness report), and that the call still comes first. Otherwise don't mention the form.` : ''}
 - If they said not now, thank them warmly, say no problem, and leave the door open in one line. Don't push.
@@ -1172,11 +1172,11 @@ async function stripLinkedIn() {
   } finally { stripping = false; }
 }
 let migrating = false;
-// He can't visit businesses in person, so waiting drafts that offer to stop by become call or Zoom only.
-const VISIT_LINES = [['Happy to call, do Zoom, or come by.', 'Happy to call or do Zoom.'], ['Phone, Zoom, or I can stop by, whatever works.', 'Phone or Zoom, whatever works.']];
+// He can't visit businesses in person and doesn't use Zoom, so waiting drafts offer a call, Teams or Google Meet.
+const VISIT_LINES = [['Happy to call, do Zoom, or come by.', 'Happy to talk by phone, Teams or Google Meet.'], ['Phone, Zoom, or I can stop by, whatever works.', 'Phone, Teams or Google Meet, whatever works.'], ['Happy to call or do Zoom.', 'Happy to talk by phone, Teams or Google Meet.'], ['Phone or Zoom, whatever works.', 'Phone, Teams or Google Meet, whatever works.']];
 let migratingVisit = false;
 async function migrateVisits() {
-  if (migratingVisit || !S.db || !S.loaded || !S.metaLoaded || (S.meta.migrations || {}).no_visit_v1 || settings().offer_visit) return;
+  if (migratingVisit || !S.db || !S.loaded || !S.metaLoaded || (S.meta.migrations || {}).no_zoom_v1 || settings().offer_visit) return;
   migratingVisit = true;
   try {
     let n = 0;
@@ -1185,8 +1185,8 @@ async function migrateVisits() {
       for (const [a, z] of VISIT_LINES) b = b.replace(a, z);
       if (b !== (p.body || '')) { await patch(p.id, { body: b }).catch(() => {}); n++; }
     }
-    await S.db.doc('meta/status').update({ migrations: { ...(S.meta.migrations || {}), no_visit_v1: nowIso() } });
-    if (n) toast(`Updated ${n} waiting drafts: they offer a call or Zoom now, not a visit.`);
+    await S.db.doc('meta/status').update({ migrations: { ...(S.meta.migrations || {}), no_visit_v1: (S.meta.migrations || {}).no_visit_v1 || nowIso(), no_zoom_v1: nowIso() } });
+    if (n) toast(`Updated ${n} waiting drafts: they offer phone, Teams or Google Meet now (no Zoom, no visits).`);
   } finally { migratingVisit = false; }
 }
 async function migrateDrafts() {
@@ -1771,8 +1771,9 @@ function readyReply(p) {
   if (!needsAnswer(p) || !p.reply_draft_id || !p.reply_draft) return '';
   const busy = S.working[p.id] === 'gdraft';
   return `<div class="ready-reply"><div class="help" style="margin:8px 0 4px">Your reply is written and waiting:</div>
-    <pre style="white-space:pre-wrap; font:inherit; margin:0 0 8px; padding:10px; border:1px solid var(--line); border-radius:8px">${esc(p.reply_draft)}</pre>
+    <textarea class="ready-ta" data-gedit="${esc(p.id)}" aria-label="Your reply (you can edit it)" ${busy || S.readOnly ? 'disabled' : ''} style="display:block; width:100%; min-height:12em; box-sizing:border-box; white-space:pre-wrap; font:inherit; color:inherit; background:transparent; margin:0 0 8px; padding:10px; border:1px solid var(--line); border-radius:8px; resize:vertical">${esc(S.gEdits[p.id] ?? p.reply_draft)}</textarea>
     <button class="btn solid" data-gdraft="${esc(p.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Sending…' : 'Send it'}</button>
+    <span class="help" data-gsaved="${esc(p.id)}" style="margin-left:8px"></span>
     ${p.reply_draft_url ? `<a class="btn ghost" href="${esc(p.reply_draft_url)}" target="_blank" rel="noopener">Change it in Gmail ↗</a>` : ''}</div>`;
 }
 
@@ -1781,6 +1782,8 @@ async function sendReadyReply(p) {
   if (!S.mcp) throw new Error('Gmail isn\'t available in this view.');
   S.working[p.id] = 'gdraft'; render();
   try {
+    // Edited on the page: save the new text into the Gmail draft first, so what's sent is what he sees.
+    if (S.gEdits[p.id] != null && S.gEdits[p.id] !== p.reply_draft) p = await saveReplyEdit(p, S.gEdits[p.id]);
     await S.mcp.callTool(GMAIL, 'send_message', { draftId: p.reply_draft_id });
     const at = nowIso();
     await patch(p.id, { answered_at: at, reply_draft: null, reply_draft_id: null, reply_draft_url: null,
@@ -2219,7 +2222,17 @@ function renderView() {
 }
 function isEditing() {
   const a = document.activeElement;
-  return a && /TEXTAREA|INPUT/.test(a.tagName) && a.closest('.detail');
+  return a && /TEXTAREA|INPUT/.test(a.tagName) && (a.closest('.detail') || a.closest('.ready-reply'));
+}
+// Saves an edited waiting reply into its Gmail draft and on the desk.
+async function saveReplyEdit(p, body) {
+  if (!S.mcp) throw new Error('Gmail isn\'t available in this view.');
+  const res = await S.mcp.callTool(GMAIL, 'update_draft', { draftId: p.reply_draft_id, body });
+  const pl = res.payload || {};
+  const id = pl.id || p.reply_draft_id;
+  await patch(p.id, { reply_draft: body, reply_draft_id: id }, 'Edited the waiting reply');
+  delete S.gEdits[p.id];
+  return { ...p, reply_draft: body, reply_draft_id: id };
 }
 function renderMe() {
   const el = $('#meCard'); if (!el) return;
@@ -2242,10 +2255,20 @@ function fitTextareas() {
   document.querySelectorAll('textarea#dBody, textarea#rBody').forEach(t => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 4}px`; });
 }
 document.addEventListener('input', e => {
+  if (e.target.matches && e.target.matches('textarea[data-gedit]')) { S.gEdits[e.target.dataset.gedit] = e.target.value; const n = document.querySelector(`[data-gsaved="${e.target.dataset.gedit}"]`); if (n) n.textContent = 'Not saved yet'; }
   if (e.target.id === 'dBody' || e.target.id === 'rBody') fitTextareas();
   if (e.target.id === 'rBody') S.replyDrafts[e.target.closest('[data-detail]').dataset.detail] = e.target.value;
 });
 document.addEventListener('change', e => {
+  if (e.target.matches && e.target.matches('textarea[data-gedit]')) {
+    const p = S.prospects.find(x => x.id === e.target.dataset.gedit);
+    const n = document.querySelector(`[data-gsaved="${e.target.dataset.gedit}"]`);
+    if (p && e.target.value !== p.reply_draft) {
+      if (n) n.textContent = 'Saving…';
+      saveReplyEdit(p, e.target.value).then(() => { const m = document.querySelector(`[data-gsaved="${p.id}"]`); if (m) m.textContent = 'Saved to the Gmail draft'; })
+        .catch(err => { if (n) n.textContent = ''; toast(err && err.code ? mcpMessage(err, GMAIL) : (err.message || String(err)), { err: true }); });
+    }
+  }
   if (e.target.id === 'rBody') patch(e.target.closest('[data-detail]').dataset.detail, { reply_draft: e.target.value }).catch(() => {});
   if (e.target.id === 'rFree' && S.db) {
     S.db.doc('meta/status').update({ settings: { ...(S.meta.settings || {}), free_times: e.target.value.trim() } })

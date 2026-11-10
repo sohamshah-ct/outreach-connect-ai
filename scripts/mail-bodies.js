@@ -15,6 +15,15 @@ function mailBodies(body, settings = {}) {
   const prof = profileOf(settings);
   // A draft written before offer_visit existed may still offer to stop by in person.
   if (!prof.offer_visit) body = String(body).replace('Happy to call, do Zoom, or come by.', 'Happy to call or do Zoom.').replace('Phone, Zoom, or I can stop by, whatever works.', 'Phone or Zoom, whatever works.');
+  // Drafts written before video_apps existed offer Zoom; offer the apps the student actually uses.
+  const apps = String(prof.video_apps || 'Teams or Google Meet').trim();
+  if (!/zoom/i.test(apps)) {
+    body = String(body)
+      .replace('Happy to call, do Zoom, or come by.', `Happy to talk by phone, ${apps}, or come by.`)
+      .replace('Phone, Zoom, or I can stop by, whatever works.', `Phone, ${apps}, or I can stop by, whatever works.`)
+      .replace('Happy to call or do Zoom.', `Happy to talk by phone, ${apps}.`)
+      .replace('Phone or Zoom, whatever works.', `Phone, ${apps}, whatever works.`);
+  }
   // "linkedin.com/in/maya-lin", with or without https:// and www.
   const path = prof.linkedin_short.replace(/^linkedin\.com/i, '');
   const linkedin = /^\/in\/[^/]+/i.test(path) ? new RegExp(`(?:https?:\\/\\/)?(?:www\\.)?linkedin\\.com${reEsc(path)}\\/?`, 'gi') : null;

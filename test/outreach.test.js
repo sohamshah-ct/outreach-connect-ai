@@ -490,7 +490,8 @@ test('class area: CT, Boston, New York and New England; others stay on the desk'
   const tx = composeInitial({ id: 't', name: 'Sellmark', town: 'Mansfield', state: 'TX', bucket: 'manufacturing', email: 'a@b.com' }, settings).body;
   assert.doesNotMatch(tx, /Connect\.AI|stop by/);
   const ma = composeInitial({ id: 'm', name: 'Boardwalk Storage', town: 'Mansfield', state: 'MA', bucket: 'trades', email: 'a@b.com' }, settings).body;
-  assert.match(ma, /Phone or Zoom|call or do Zoom/);
+  assert.match(ma, /Phone, Teams or Google Meet|by phone, Teams or Google Meet/);
+  assert.doesNotMatch(ma, /Zoom/);
   assert.doesNotMatch(ma, /stop by/);
 });
 
@@ -541,7 +542,8 @@ test('nearby businesses get the come-by-in-person line only when offer_visit is 
   assert.doesNotMatch(vernonOff, /stop by|come by/);
   const far = composeInitial({ id: 'f', name: 'Far Shop', town: 'Greenwich', bucket: 'retail', email: 'a@b.com' }, settings).body;
   assert.doesNotMatch(far, /stop by/);
-  assert.match(far, /Phone or Zoom|call or do Zoom/);
+  assert.match(far, /Phone, Teams or Google Meet|by phone, Teams or Google Meet/);
+  assert.doesNotMatch(far, /Zoom/);
 });
 
 test("a website for a different business with a shared common word doesn't count", () => {
@@ -966,4 +968,12 @@ test('call brief: sourced facts, no "Contact"/"Found by" lines, and a website qu
   assert.match(questions(p)[0], /Copper Beech Carpentry\?/);
   assert.ok(questions(p).some(q => /without a website/.test(q)));
   assert.ok(!questions({ ...p, website: 'https://x.com' }).some(q => /without a website/.test(q)));
+});
+
+test('send step swaps old Zoom lines for the apps the student uses', () => {
+  const { mailBodies } = require('../scripts/mail-bodies');
+  const b = mailBodies('Hi Al,\n\nWould you have 15 minutes for a call sometime? Phone or Zoom, whatever works.\n\nAny chance? Happy to call or do Zoom.', {});
+  assert.doesNotMatch(b.body, /Zoom/);
+  assert.match(b.body, /Phone, Teams or Google Meet, whatever works\./);
+  assert.match(b.body, /Happy to talk by phone, Teams or Google Meet\./);
 });
