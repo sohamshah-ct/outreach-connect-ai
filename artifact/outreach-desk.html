@@ -876,6 +876,16 @@ async function logToCrm(p, kind, body, extra = {}) {
       ...(extra.stage === 'lead' ? {} : { next_step_due: addDays(6) }),
       notes: crmNotesNow(p),
       ...(p.contact_name ? { contact: { full_name: p.contact_name, ...(p.email ? { email: p.email } : {}), ...(p.contact_title ? { title: p.contact_title } : {}), is_primary: true } } : {}),
+    }).catch(e => {
+      // Someone (often a classmate) added it after this page loaded the CRM list.
+      const msg = String((e && e.message) || '');
+      if (/already in the CRM/i.test(msg)) {
+        const m = /"existing"\s*:\s*\{\s*"id"\s*:\s*"([0-9a-f-]{36})"/i.exec(msg);
+        const err = new Error(`${shortName(p.name)} is already in the class CRM.`);
+        err.duplicate = true; err.existingId = m ? m[1] : null;
+        throw err;
+      }
+      throw e;
     });
     const pl = res.payload || {};
     orgId = pl.id || (pl.org && pl.org.id) || (pl.organization && pl.organization.id) || (pl.existing && pl.existing.id) || null;
@@ -1241,6 +1251,7 @@ function crmAddedToday() { const k = dayKey(new Date()); return S.prospects.filt
 // As soon as a business has a draft, it's posted to connect-ai.world/crm as a
 // Lead owned by the student, so the class sees it before any email goes out.
 let leadSync = false;
+const leadFailed = new Set(); // don't retry (or re-toast) a failed add on every refresh
 async function syncLeads() {
   if (leadSync || !S.mcp || !S.db || !S.crmAll || !S.crmMine) return;
   const room = CRM_LEADS_PER_DAY - crmAddedToday();
@@ -1253,12 +1264,23 @@ async function syncLeads() {
   let added = 0;
   try {
     for (const p of todo) {
+      if (leadFailed.has(p.id)) continue;
       const existing = crmMatch(p.name) || crmMatch(shortName(p.name));
       if (existing && !S.crmMine.some(o => o.id === existing.id)) {
         await patch(p.id, { status: 'skipped' }, `Skipped: already in the class CRM${existing.owner ? ` (owner: ${existing.owner.name})` : ''}`);
         continue;
       }
-      const orgId = existing ? existing.id : await logToCrm(p, null, '', { stage: 'lead' });
+      let orgId;
+      try { orgId = existing ? existing.id : await logToCrm(p, null, '', { stage: 'lead' }); }
+      catch (e) {
+        if (e && e.duplicate) {
+          // Someone else added it since this page loaded the CRM list: leave it to them.
+          await patch(p.id, { status: 'skipped' }, 'Skipped: someone in the class added it to the CRM first');
+          continue;
+        }
+        leadFailed.add(p.id);
+        throw e;
+      }
       await patch(p.id, { crm_org_id: orgId, crm_stage: existing ? (existing.stage || 'lead') : 'lead', ...(existing ? {} : { crm_added_at: nowIso(), crm_notes_synced: true }) }, existing ? 'Linked to its class CRM record' : 'Added to the class CRM as a Lead (owner: you)');
       if (!existing) added++;
     }
