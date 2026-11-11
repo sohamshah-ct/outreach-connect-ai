@@ -248,6 +248,8 @@ table.list .num{text-align:right; font-variant-numeric:tabular-nums;}
 .feed{list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:8px;}
 .feed li{display:grid; grid-template-columns:110px 120px minmax(0,1fr); gap:12px; padding:10px 14px; border-bottom:1px solid var(--line); align-items:baseline; font-size:13px;}
 .feed li:last-child{border-bottom:none;}
+.linkish{background:none; border:none; padding:0; font:inherit; color:inherit; cursor:pointer; text-align:left; text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:3px;}
+.linkish:hover{text-decoration-color:currentColor;}
 @media (max-width:640px){ .feed li{grid-template-columns:1fr; gap:3px;} }
 .feed .t{font-family:var(--mono); font-size:10.5px; color:var(--muted);}
 .feed .who{font-family:var(--serif); font-size:15px; color:var(--ink); cursor:pointer;}
@@ -315,6 +317,7 @@ footer a{color:inherit;}
 .wrap{padding-block:22px 60px; padding-left:max(24px, env(safe-area-inset-left, 0px)); padding-right:max(24px, env(safe-area-inset-right, 0px));}
 @media (max-width:640px){ .wrap{padding-block:16px 50px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));} }
 .toasts{bottom:calc(20px + env(safe-area-inset-bottom, 0px));}
+html,body{overflow-x:clip;}
 .drawer{padding-right:env(safe-area-inset-right, 0px); padding-top:env(safe-area-inset-top, 0px);}
 .conn-chips{display:flex; gap:6px; flex-wrap:wrap;}
 .cchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; padding:5px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted);}
@@ -1627,11 +1630,12 @@ function renderTabs() {
     ['list', 'All businesses', ps.length],
     ['replies', 'Replies', ps.filter(p => p.status === 'replied' || (p.status === 'not_interested' && p.replied_at)).length],
     ['activity', 'Activity', null],
+    ...(S.readOnly ? [] : [['calls', 'Calls', S.calls ? realCalls().length : null]]),
     ['crm', 'My CRM', S.crmMine ? S.crmMine.length : null],
     ['board', 'Class board', S.crmBoard ? new Set(S.crmBoard.map(o => (o.owner || {}).name || '')).size : null],
   ];
   $('#tabs').innerHTML = tabs.map(([k, l, n]) => `<button class="tab" role="tab" aria-selected="${S.tab === k}" data-tab="${k}">${l}${n != null ? `<b>${n}</b>` : ''}</button>`).join('');
-  $('#filters').hidden = S.tab === 'activity' || S.tab === 'crm' || S.tab === 'board' || S.tab === 'replies';
+  $('#filters').hidden = S.tab === 'activity' || S.tab === 'calls' || S.tab === 'crm' || S.tab === 'board' || S.tab === 'replies';
   $('#fClosed').closest('label').hidden = S.tab === 'review';
   const states = [...new Set(ps.map(stateOf))].sort((a, b) => (a === 'CT' ? -1 : b === 'CT' ? 1 : a.localeCompare(b)));
   const outside = ps.filter(p => !inClassArea(p)).length;
@@ -1811,6 +1815,34 @@ function renderReplies() {
     ${help ? `<p class="help" style="margin:0 0 8px">${help}</p>` : ''}
     <ul class="feed">${list.map(p => `<li><span class="t">${ago(p[atKey])}</span><span><span class="badge ${cls}">${lab}</span></span>
       <span><span class="who" data-id="${esc(p.id)}">${esc(p.name)}</span> · ${esc(p.contact_name || p.email || '')}<br><span class="body">${esc(p[snipKey] || '')}</span>${readyReply(p)}</span></li>`).join('')}</ul>`).join('');
+}
+
+// Every call or meeting recorded with "Start a session", newest first. Opening one shows the recording, summary, who said what and the thank-you.
+function callDate(d) { return new Date(d.ended_at || d.started_at || Date.now()).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+function callRow(d) {
+  const fit = d.connect_ai_fit === 'yes' ? ['Could use help', 'ok'] : d.connect_ai_fit === 'maybe' ? ['Maybe', 'info'] : d.connect_ai_fit === 'no' ? ['Not a fit now', 'gray'] : null;
+  const ty = d.thank_you_sent_at ? 'Thank-you sent' : d.scheduled_send_at ? 'Thank-you scheduled' : (d.reply_draft_id || d.thank_you_draft_id) ? 'Thank-you waiting on you' : '';
+  const sum = String(d.summary || d.notes || '').trim();
+  return `<li class="call-row"><span class="t">${esc(callDate(d))}</span><span>${fit ? `<span class="badge ${fit[1]}">${fit[0]}</span>` : ''}</span>
+    <span><button class="linkish" data-open-call="${esc(d.id)}"><b>${esc(d.business || 'Session')}</b>${d.person ? ' · ' + esc(d.person) : ''}</button>
+    <span style="color:var(--muted)"> · ${d.minutes ? d.minutes + ' min' : ''}${d.audio_id ? ' · recording' : ''}${ty ? ' · ' + ty : ''}</span>
+    ${sum ? `<br><span class="body">${esc(sum.length > 260 ? sum.slice(0, 257) + '…' : sum)}</span>` : ''}
+    ${d.next_step ? `<br><span class="body"><b>Next:</b> ${esc(d.next_step)}</span>` : ''}</span></li>`;
+}
+function realCalls() { return (S.calls || []).filter(d => d.kind !== 'test' && !/^test-/.test(d.id)); }
+function renderCalls() {
+  if (!S.calls) return emptyView('Loading your calls…', '');
+  const list = realCalls();
+  if (!list.length) return emptyView('No recorded calls yet.', 'Tap "Start a session" before a call. Each one shows up here with the recording, a summary, who said what, and the thank-you.');
+  return `<p class="help" style="margin:4px 0 10px">Every call you've recorded, newest first. Click one to see the summary, what you learned, who said what, and the recording.</p><ul class="feed">${list.map(callRow).join('')}</ul>`;
+}
+function openCall(id) {
+  S._sesPast = S.calls || [];
+  if (!(S._sesPast).some(d => d.id === id)) return;
+  closeDrawer();
+  $('#sess').classList.add('on');
+  document.documentElement.style.overflow = 'hidden';
+  openPastSession(id);
 }
 
 function renderActivity() {
@@ -2202,6 +2234,7 @@ function detailHtml(id) {
             + (auto.length ? `<span style="color:var(--muted)">${auto.length} more load${auto.length === 1 ? '' : 's'} left out: your own copy, a mail scanner, or Apple Mail loading it in the background.</span>` : '')
             + (p.opens_synced_at ? `<span style="color:var(--muted)">Checked ${esc(ago(p.opens_synced_at))}.</span>` : '');
         })()}</div></div>` : ''}
+        ${(() => { const calls = (S.calls || []).filter(d => d.prospect_id === p.id); return calls.length ? `<div class="section"><span class="eyebrow">Recorded calls</span><ul class="feed">${calls.map(callRow).join('')}</ul></div>` : ''; })()}
         ${(p.log || []).length ? `<div class="section"><span class="eyebrow">History</span><ul class="timeline">${p.log.slice().reverse().map(e => `<li><span class="t">${when(e.at)}</span>${esc(e.what)}</li>`).join('')}</ul></div>` : ''}
       </div>
     </div>
@@ -2215,6 +2248,7 @@ function renderView() {
   else if (S.tab === 'list') v.innerHTML = renderList();
   else if (S.tab === 'replies') v.innerHTML = renderReplies();
   else if (S.tab === 'activity') v.innerHTML = renderActivity();
+  else if (S.tab === 'calls') v.innerHTML = renderCalls();
   else if (S.tab === 'crm') v.innerHTML = renderCrm();
   else if (S.tab === 'board') v.innerHTML = renderBoard();
   else v.innerHTML = renderReview();
@@ -2633,6 +2667,8 @@ document.addEventListener('click', async e => {
   if (gd) { const p = S.prospects.find(x => x.id === gd.dataset.gdraft); if (p) sendReadyReply(p).catch(err => toast(err && err.code ? mcpMessage(err, GMAIL) : err.message, { err: true })); return; }
   const bw = t.closest('[data-boardwho]');
   if (bw) { S.boardWho = bw.dataset.boardwho; renderView(); return; }
+  const callBtn = t.closest('[data-open-call]');
+  if (callBtn) { openCall(callBtn.dataset.openCall); return; }
   const opener = t.closest('[data-open]');
   if (opener) { openDrawer(opener.dataset.open); return; }
   const mode = t.closest('[data-rvmode]');
@@ -3374,6 +3410,11 @@ render();
       // Keep a copy of every conversation where someone wrote back, for the people he shares the desk with.
       if (!backfilled) { backfilled = true; S.prospects.filter(p => ['replied', 'not_interested'].includes(p.status)).forEach(p => loadThread(p)); }
     }, () => { S.dbState = 'bad'; S.loaded = true; render(); });
+    if (!S.readOnly) db.collection('sessions').onSnapshot(snap => {
+      S.calls = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.ended_at || b.started_at || '').localeCompare(String(a.ended_at || a.started_at || '')));
+      S._sesPast = S.calls;
+      render();
+    }, () => { S.calls = []; });
     db.doc('meta/status').onSnapshot(snap => { S.meta = snap.exists ? (snap.data() || {}) : {}; S.metaLoaded = true; render(); if (!S.readOnly) migrateDrafts(); }, () => {});
     if (S.readOnly) {
       db.doc('meta/crm_view').onSnapshot(snap => {

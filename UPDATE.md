@@ -26,6 +26,8 @@ Publish `artifact/outreach-desk.html` to their desk URL (`url` set, so it update
 
 In plain words:
 
+- New **Calls** tab: every call or meeting you recorded with "Start a session", newest first, with the summary, what you learned, the next step, and whether the thank-you went out. Click one to see who said what and play the recording. Each business's page also lists its recorded calls.
+- Calls are offered by phone, Teams or Google Meet (no Zoom), and replies waiting for you can be edited right on the desk before sending.
 - Follow-ups now go out as replies to the first email, so Outlook and other mail apps show them in the same conversation, with the original quoted underneath.
 - Replies from an owner's other email address (same thread) are now caught.
 - When an owner writes back, the email comes with a one-page call brief PDF: their number, what they said, sourced facts about the business, questions to ask, and what's been sent. If they gave a number for texts, the same goes to their phone.

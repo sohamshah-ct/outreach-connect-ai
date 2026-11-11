@@ -277,7 +277,7 @@ function renderCard() {
         </ol>
         <div class="copybox"><label for="promptBox">Setup message</label><textarea id="promptBox" readonly>${esc(setupPrompt())}</textarea>
           <div class="actions"><button type="button" class="btn" data-nav="back">Back</button><span class="spacer"></span><span class="hint" id="copied"></span><button type="button" class="btn go" data-copy>Copy the setup message</button></div></div>
-        <p class="hint">No business is emailed during setup. When it finishes, it sends Soham one short note from your Gmail saying you signed up and whether everything set up, so he can help if something didn't. Your answers stay in this browser if you come back later.</p>`;
+        <p class="hint">No business is emailed during setup. When it finishes, it sends Soham one short note from your Gmail saying you signed up and whether everything set up, so he can help if something didn't. Your answers stay in this browser if you come back later.</p>${updateBox()}`;
       return;
     }
     c.innerHTML = `<div class="eyebrow">Step 5 of 5</div><h2>Create your desk</h2>
@@ -288,10 +288,42 @@ function renderCard() {
       <div class="actions"><button type="button" class="btn" data-nav="back">Back</button><span class="spacer"></span>
         <button type="button" class="btn" data-copyprompt>${S.showPrompt ? 'Hide' : 'Show'} the setup message</button>
         <button type="button" class="btn go" data-create ${S.creating || r ? 'disabled' : ''}>${S.creating ? 'Starting…' : r ? 'Started' : 'Create my desk'}</button></div>
-      ${S.showPrompt || S.error ? `<div class="copybox"><label for="promptBox">Setup message</label><textarea id="promptBox" readonly>${esc(setupPrompt())}</textarea><div class="actions"><button type="button" class="btn" data-copy>Copy</button><span class="hint" id="copied"></span></div></div>` : ''}`;
+      ${S.showPrompt || S.error ? `<div class="copybox"><label for="promptBox">Setup message</label><textarea id="promptBox" readonly>${esc(setupPrompt())}</textarea><div class="actions"><button type="button" class="btn" data-copy>Copy</button><span class="hint" id="copied"></span></div></div>` : ''}${r ? updateBox() : ''}`;
   }
 }
 function render() { renderRail(); renderCard(); }
+
+async function startUpdate() {
+  S.updating = true; S.updError = null; render();
+  try {
+    if (!S.mcp) throw new Error('This page can\'t reach your Claude Code from here.');
+    let env = null;
+    try {
+      const r = await S.mcp.callTool('Claude Code Remote', 'list_environments', { limit: 20 });
+      const pl = r.payload || {};
+      const list = pl.environments || pl.data || (Array.isArray(pl) ? pl : []);
+      const pick = list.find(e => /complete|full|unrestricted/i.test(e.name || '')) || list.find(e => /default/i.test(e.name || '')) || list[0];
+      env = pick ? (pick.environment_id || pick.id) : null;
+    } catch (e) { /* account default */ }
+    const res = await S.mcp.callTool('Claude Code Remote', 'create_session', { title: S.p.sender_name.trim() ? `Update ${first()}'s outreach desk` : 'Update my outreach desk', prompt: updatePrompt(), source_url: REPO, ...(env ? { environment_id: env } : {}) });
+    const pl = res.payload || {};
+    const id = pl.session_id || pl.id || (pl.session || {}).id;
+    if (!id) throw new Error('Claude Code didn\'t say which session it started.');
+    S.upd = { id, url: pl.url || `https://claude.ai/code/${id}` };
+  } catch (e) {
+    const code = e && e.code;
+    S.updError = code === 'not_in_manifest' || code === 'approval_required' || code === 'consent_required' ? 'Claude asked for permission and it wasn\'t given.' : code === 'server_not_connected' ? 'Claude Code isn\'t connected for this page.' : (e && e.message) || 'Something went wrong.';
+  }
+  S.updating = false; render();
+}
+function updateBox() {
+  const u = S.upd;
+  return `<div class="note" style="margin-top:18px"><b>Already have a desk? Update it</b>
+    New things get added to the desk over time (the latest: a Calls tab with every call you've recorded, and each business's page shows its calls). Your desk only gets them when you update it. This starts a Claude Code session on your account that updates your desk. It doesn't email anyone or change your profile or schedule.
+    ${u ? `<div style="margin-top:8px"><b>Update running.</b> Open it to approve steps: <a href="${esc(u.url)}" target="_blank" rel="noopener">${esc(u.url)}</a></div>` : ''}
+    ${S.updError ? `<div style="margin-top:8px">Couldn't start it from here: ${esc(S.updError)} Copy the message below into a new session at <a href="https://claude.ai/code" target="_blank" rel="noopener">claude.ai/code</a> instead.</div>` : ''}
+    <div class="actions" style="margin-top:10px">${S.mcp ? `<button type="button" class="btn go" data-update ${S.updating || u ? 'disabled' : ''}>${S.updating ? 'Starting…' : u ? 'Started' : 'Update my desk'}</button>` : ''}<button type="button" class="btn" data-copyupd>Copy the update message</button><span class="hint" id="copiedUpd"></span></div></div>`;
+}
 
 // ---------- the message that sets everything up ----------
 function profileOut() {
@@ -318,6 +350,12 @@ My profile:
 \`\`\`json
 ${JSON.stringify(profileOut(), null, 2)}
 \`\`\``;
+}
+
+function updatePrompt() {
+  return `Update my Connect.AI outreach desk to the latest version.
+
+The code is the public repo ${REPO}. If it isn't checked out in this session, clone it (git clone ${REPO}), or git pull if it is. Then follow UPDATE.md in that repo, step by step. Ask me for my desk's link if you need it. Don't email any business, and don't change my profile, my schedules or which connectors my routines use. When it's done, tell me in a few plain lines what changed.`;
 }
 
 // ---------- saving (private to each person) ----------
@@ -386,6 +424,8 @@ document.addEventListener('click', e => {
   if (st) { const c = st.dataset.state; S.p.states = S.p.states.includes(c) ? S.p.states.filter(x => x !== c) : [...S.p.states, c]; delete shownErrors.states; renderCard(); scheduleSave(); return; }
   const cap = t.closest('[data-cap]'); if (cap) { S.p.daily_cap = +cap.dataset.cap; renderCard(); scheduleSave(); return; }
   if (t.closest('[data-create]')) { create(); return; }
+  if (t.closest('[data-update]')) { startUpdate(); return; }
+  if (t.closest('[data-copyupd]')) { const note = $('#copiedUpd'); navigator.clipboard.writeText(updatePrompt()).then(() => { note.textContent = 'Copied. Paste it into a new session at claude.ai/code.'; }).catch(() => { note.textContent = 'Couldn\'t copy here. Select the text in UPDATE.md instead.'; }); return; }
   if (t.closest('[data-copyprompt]')) { S.showPrompt = !S.showPrompt; renderCard(); return; }
   if (t.closest('[data-copy]')) {
     const box = $('#promptBox'); const note = $('#copied');
