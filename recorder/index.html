@@ -79,7 +79,8 @@ const V = window.Voices;
 let st = { segs: [], interim: '', notes: '', elapsed: 0, since: null, startedAt: null, consent: false, sent: false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-  if (saved && !saved.sent) {
+  if (saved && (!saved.sent || !saved.acked)) {
+    saved.sent = false;
     st = { ...st, ...saved, interim: '', since: null };
     if (!st.segs && Array.isArray(saved.finals)) st.segs = saved.finals.map(text => ({ t0: 0, t1: 0, text, f: 0, e: 0 }));
     delete st.finals;
@@ -289,7 +290,7 @@ async function end() {
   for (let i = 0; i < 30 && !acked; i++) await new Promise(r => setTimeout(r, 100));
   window.removeEventListener('message', onAck);
   if (acked) {
-    st.sent = true; save();
+    st.sent = true; st.acked = true; save();
     msg('Sent to your desk ✓ It\'s putting names on the voices and writing the summary now. You can close this tab.', 'ok');
     paint();
     setTimeout(() => { try { window.close(); } catch (e) {} }, 1500);
@@ -300,12 +301,12 @@ async function end() {
   const packed = await pack(payload);
   const mailBody = `${kind === 'meeting' ? 'Meeting' : 'Call'} with ${person || 'the owner'} at ${biz} (${fmt(payload.ms)})\n\nTranscript:\n${payload.transcript}\n\nMy notes:\n${payload.notes}`;
   const mailHref = notify ? `mailto:${encodeURIComponent(notify)}?subject=${encodeURIComponent('Call notes: ' + (person || biz) + ' at ' + biz)}&body=${encodeURIComponent(mailBody.slice(0, 1800))}` : '';
-  st.sent = true; save(); paint();
+  st.sent = false; save(); paint();
   const ext = audio && /mp4/.test(audio.type) ? 'm4a' : 'webm';
   const fname = `${biz.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'call'}-${new Date().toISOString().slice(0, 10)}.${ext}`;
   const saveLink = audio ? `<a href="${URL.createObjectURL(audio)}" download="${fname}"><b>Save the recording</b></a> (your desk opened in another app, so the audio can't go to it directly).<br><br>Then ` : '';
-  msg(`${saveLink}${ret ? `<a href="${ret}#ses=${packed}"><b>${audio ? 'open' : 'Open'} your desk with this session</b></a>: it writes the summary and does the rest.` : ''}${mailHref ? `${ret ? '<br><br>Or ' : ''}<a href="${mailHref}">email it to yourself as call notes</a> and it's handled at the next check.` : ''}`, 'ok');
-  if (ret && !audio) location.href = `${ret}#ses=${packed}`;
+  window.__copyText = `${kind === 'meeting' ? 'Meeting' : 'Call'} with ${person || 'the owner'} at ${biz} (${fmt(payload.ms)})\n\nTranscript:\n${segs.map(x => (x.voice ? 'Voice ' + x.voice + ': ' : '') + x.text).join('\n')}\n\nMy notes:\n${payload.notes}`;
+  msg(`<button type="button" class="end" style="flex:none;padding:12px 18px;margin-bottom:10px" onclick="navigator.clipboard.writeText(window.__copyText).then(()=>{this.textContent='Copied. Paste it to Claude.'}).catch(()=>{this.textContent='Copy failed. Try again.'})">Copy the whole call</button><br>${saveLink}${ret ? `<a href="${ret}#ses=${packed}"><b>${audio ? 'open' : 'Open'} your desk with this session</b></a>: it writes the summary and does the rest.` : ''}${mailHref ? `${ret ? '<br><br>Or ' : ''}<a href="${mailHref}">email it to yourself as call notes</a> and it's handled at the next check.` : ''}`, 'ok');
 }
 
 $('consent').addEventListener('change', e => { st.consent = e.target.checked; $('consentBox').classList.toggle('ok', st.consent); if (!st.consent && listening) pause(); save(); paint(); });
