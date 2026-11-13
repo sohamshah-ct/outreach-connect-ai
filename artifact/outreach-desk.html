@@ -248,6 +248,15 @@ table.list .num{text-align:right; font-variant-numeric:tabular-nums;}
 .feed{list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:8px;}
 .feed li{display:grid; grid-template-columns:110px 120px minmax(0,1fr); gap:12px; padding:10px 14px; border-bottom:1px solid var(--line); align-items:baseline; font-size:13px;}
 .feed li:last-child{border-bottom:none;}
+.callbar{display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin:14px 0 4px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper);}
+.callbar[hidden]{display:none;}
+.callbar .when{font:600 12px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--crimson);}
+.callbar .who{font-size:16px; font-weight:600; flex:1 1 240px;}
+.callbar .who small{display:block; font-weight:400; color:var(--muted); font-size:13px; margin-top:2px;}
+.callbar .btn{white-space:nowrap;}
+.sess-suggest{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:10px 0;}
+.sess-suggest[hidden]{display:none;}
+.sess-suggest ol{margin:6px 0 0; padding-left:20px; display:grid; gap:4px;}
 .linkish{background:none; border:none; padding:0; font:inherit; color:inherit; cursor:pointer; text-align:left; text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:3px;}
 .linkish:hover{text-decoration-color:currentColor;}
 @media (max-width:640px){ .feed li{grid-template-columns:1fr; gap:3px;} }
@@ -619,6 +628,7 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
     <div class="chart" id="chart"></div>
   </section>
 
+  <div class="callbar" id="callBar" hidden></div>
   <div class="toolbar">
     <div class="tabs" role="tablist" id="tabs"></div>
   </div>
@@ -2278,7 +2288,7 @@ function renderMe() {
   el.innerHTML = `${s.photo ? `<img src="${esc(s.photo)}" alt="${esc(m.name)}" width="72" height="72">` : `<span class="initials" aria-hidden="true">${esc(initials)}</span>`}<div><b>${esc(m.name)}</b>${line2 ? `<span>${esc(line2)}</span>` : ''}<span>${esc(s.school_long || '')}</span></div>`;
 }
 function render() {
-  renderMe(); renderConn(); renderNotice(); renderStats(); renderChart(); renderTabs();
+  renderMe(); renderConn(); renderNotice(); renderStats(); renderChart(); renderCallBar(); renderTabs();
   radarData(); radarInit();
   // While Claude is writing into a reply or prep sheet, leave the page as it is.
   const writing = Object.keys(S.working).length > 0;
@@ -2657,6 +2667,7 @@ async function autoSend() {
   if (!(await sendQueue())) S.autoOff = true;
 }
 setInterval(autoSend, 60 * 1000);
+setInterval(() => { if (S.loaded) renderCallBar(); }, 30 * 1000);
 
 document.addEventListener('click', async e => {
   const t = e.target;
@@ -2667,6 +2678,8 @@ document.addEventListener('click', async e => {
   if (gd) { const p = S.prospects.find(x => x.id === gd.dataset.gdraft); if (p) sendReadyReply(p).catch(err => toast(err && err.code ? mcpMessage(err, GMAIL) : err.message, { err: true })); return; }
   const bw = t.closest('[data-boardwho]');
   if (bw) { S.boardWho = bw.dataset.boardwho; renderView(); return; }
+  const goCall = t.closest('[data-call-go]');
+  if (goCall) { startCallFor(goCall.dataset.callGo); return; }
   const callBtn = t.closest('[data-open-call]');
   if (callBtn) { openCall(callBtn.dataset.openCall); return; }
   const opener = t.closest('[data-open]');
@@ -2773,6 +2786,50 @@ function sesForget() { try { localStorage.removeItem(SES_KEY); } catch (e) { /* 
 const fmtClock = ms => { const s = Math.floor(ms / 1000); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const r = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(r).padStart(2, '0'); };
 const sesElapsed = () => SES ? SES.elapsedMs + (SES.runningSince ? Date.now() - SES.runningSince : 0) : 0;
 
+// ---------- the next call: one tap to start recording ----------
+// call_at is stored as New York local time ("2026-11-12T15:15").
+function nyLocal(str) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(String(str || ''));
+  if (!m) return null;
+  const want = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]);
+  let guess = want;
+  for (let i = 0; i < 2; i++) {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(guess)).map(x => [x.type, x.value]));
+    guess += want - Date.UTC(+parts.year, parts.month - 1, +parts.day, +parts.hour, +parts.minute);
+  }
+  return new Date(guess);
+}
+function nextCall() {
+  const now = Date.now();
+  const list = S.prospects.filter(p => p.call_at && (p.call_confirmed_at || (p.invite && p.invite.start === p.call_at)))
+    .map(p => ({ p, at: nyLocal(p.call_at) })).filter(x => x.at && x.at.getTime() > now - 60 * 60000 && x.at.getTime() < now + 12 * 3600000)
+    .filter(x => !(S.calls || []).some(c => c.prospect_id === x.p.id && c.started_at && Date.parse(c.started_at) > x.at.getTime() - 90 * 60000))
+    .sort((a, b) => a.at - b.at);
+  return list[0] || null;
+}
+function renderCallBar() {
+  const bar = $('#callBar'); if (!bar) return;
+  const c = S.readOnly ? null : nextCall();
+  if (!c) { bar.hidden = true; bar.innerHTML = ''; return; }
+  const mins = Math.round((c.at.getTime() - Date.now()) / 60000);
+  const time = c.at.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+  const day = c.at.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long' });
+  const today = c.at.toLocaleDateString('en-US', { timeZone: 'America/New_York' }) === new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+  const when = mins > 60 ? `${today ? 'Today' : day} at ${time}` : mins > 1 ? `In ${mins} min · ${time}` : `Now · ${time}`;
+  const p = c.p;
+  bar.hidden = false;
+  bar.innerHTML = `<span class="when">${esc(when)}</span>
+    <span class="who">${esc(p.contact_name || shortName(p.name))}, ${esc(shortName(p.name))}<small>${esc([p.call_note || p.call_how || '', p.phone ? 'Phone ' + p.phone : ''].filter(Boolean).join(' · '))}</small></span>
+    <button class="btn" data-call-go="${esc(p.id)}" title="Opens the recorder for this call and starts recording">I'm on the call · they're OK with recording</button>`;
+}
+function startCallFor(pid) {
+  const p = S.prospects.find(x => x.id === pid); if (!p) return;
+  openSession(targetFromProspect(p));
+  if (!SES || SES.picking) return;
+  SES.consent = true; sesSave();
+  openRecorder();
+}
+
 function targetFromProspect(p) {
   return { pid: p.id, name: p.contact_name || '', business: shortName(p.name), email: p.email || '', phone: p.phone || '', crm_org_id: p.crm_org_id || (crmMatch(p.name) || {}).id || null, thread_id: threadIdOf(p) || p.thread_id || null, subject: p.subject || '', town: p.town || '' };
 }
@@ -2875,6 +2932,7 @@ function renderSes() {
     ${micNote}
     <div class="sess-main">
       <div class="sess-box"><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
+        <div class="sess-suggest" id="sessSuggest" ${SES.suggest && SES.suggest.length ? '' : 'hidden'}>${SES.suggest && SES.suggest.length ? `<div class="eyebrow">Questions to ask next</div><ol>${SES.suggest.map(q => `<li>${esc(q)}</li>`).join('')}</ol>` : ''}</div>
         <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : '<span class="empty">Tap Record once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>'}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
       <div class="sess-box"><div class="eyebrow"><span>Your notes</span></div>
         <textarea class="sess-notes" id="sessNotes" placeholder="Anything worth remembering: team size, what eats their time, what they asked you, what you promised to send…">${esc(SES.notes)}</textarea></div>
@@ -3230,7 +3288,7 @@ window.addEventListener('message', e => {
   const d = e.data;
   if (!d || d.app !== 'outreach-rec' || !d.sid) return;
   if (!SES || SES.sid !== d.sid) { const sv = sesLoad(); if (sv && sv.sid === d.sid) { openSession(null); } else return; }
-  if (d.type === 'live') { SES.finals = d.transcript ? [d.transcript] : []; if (Array.isArray(d.segs)) SES.segs = d.segs; if (typeof d.notes === 'string' && d.notes) SES.recNotes = d.notes; paintLive(); sesSave(); return; }
+  if (d.type === 'live') { SES.finals = d.transcript ? [d.transcript] : []; if (Array.isArray(d.segs)) SES.segs = d.segs; if (typeof d.notes === 'string' && d.notes) SES.recNotes = d.notes; paintLive(); sesSave(); suggestNext(e.source, d.sid); return; }
   if (d.type === 'done') {
     try { e.source && e.source.postMessage({ app: 'outreach-rec', type: 'ack', sid: d.sid }, '*'); } catch (err) { /* tab closed */ }
     if (SES.out) return;
@@ -3238,6 +3296,35 @@ window.addEventListener('message', e => {
     sesImport(d);
   }
 });
+// While the call goes on, Claude reads what's been said and suggests what to ask next.
+let sugBusy = false, sugAt = 0, sugLen = 0;
+async function suggestNext(win, sid) {
+  if (!S.sample || !SES || sugBusy) return;
+  const text = (SES.finals || []).join(' ');
+  if (text.length < 300 || text.length - sugLen < 250 || Date.now() - sugAt < 25000) return;
+  sugBusy = true; sugAt = Date.now(); sugLen = text.length;
+  const t = SES.target || {};
+  const p = t.pid ? S.prospects.find(x => x.id === t.pid) : null;
+  const f = (p && p.facts) || {};
+  const prompt = [
+    `${me().first} is a UConn ${settings().sender_major || ''} student on a live phone call with ${t.name || 'a small-business owner'} of ${t.business || 'a local business'}${t.town ? ' in ' + t.town : ''}.`,
+    p ? `What we know about the business: ${[p.category, f.naics, f.description, p.call_note].filter(Boolean).join('. ')}.` : '',
+    'His goals, in order: understand how they got started and how the business runs day to day; find out which routine work takes up their time (scheduling, follow-ups, quotes, invoicing, customer questions, paperwork); and, only if something real comes up, mention that his UConn class Connect.AI has students help local businesses with that kind of work.',
+    `The most recent part of the call (speech-to-text, may be messy):\n---\n${text.slice(-3000)}\n---`,
+    'Suggest the 3 best questions for him to ask next. Each one must follow up on something specific the other person just said, be short and polite, sound like a curious student (not a salesperson), and not repeat anything already asked. Return JSON: {"questions": ["...", "...", "..."]}',
+  ].filter(Boolean).join('\n\n');
+  try {
+    const out = S.sample.json ? await S.sample.json(prompt, { modelTier: 'quick', cache: false }) : JSON.parse((await S.sample(prompt, { modelTier: 'quick', cache: false })).text);
+    const qs = (out && Array.isArray(out.questions) ? out.questions : []).filter(q => typeof q === 'string').slice(0, 3);
+    if (qs.length) {
+      SES.suggest = qs;
+      try { if (win) win.postMessage({ app: 'outreach-rec', type: 'suggest', sid, questions: qs }, '*'); } catch (err) { /* recorder closed */ }
+      const box = $('#sessSuggest'); if (box) { box.hidden = false; box.innerHTML = `<div class="eyebrow">Questions to ask next</div><ol>${qs.map(q => `<li>${esc(q)}</li>`).join('')}</ol>`; }
+    }
+  } catch (err) { /* no suggestion this time */ }
+  sugBusy = false;
+}
+
 function sesImport(d) {
   SES.finals = d.transcript ? [d.transcript] : [];
   SES.segs = Array.isArray(d.segs) && d.segs.length ? d.segs : null;
