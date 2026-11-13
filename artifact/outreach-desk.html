@@ -766,7 +766,13 @@ function nextWeekdays(n) {
   return out;
 }
 // Someone wrote back and the student hasn't answered since.
-const needsAnswer = p => p.status === 'replied' && (!p.answered_at || String(p.answered_at) < String(p.replied_at || ''));
+// Waiting on you: they wrote back and nothing has happened since (no answer, no confirmed call, no thank-you, nothing scheduled).
+const needsAnswer = p => {
+  if (p.status !== 'replied') return false;
+  const r = String(p.replied_at || '');
+  const since = x => x && String(x) >= r;
+  return !since(p.answered_at) && !since(p.thanked_at) && !since(p.call_confirmed_at) && !since(p.reply_approved_at) && !p.scheduled_send_at;
+};
 
 // ---------- state ----------
 const S = {
@@ -1466,13 +1472,17 @@ async function handleReplies(threads) {
       continue;
     }
     const latest = people[people.length - 1];
+    // Use when they actually wrote, not when this page noticed. A message already handled
+    // elsewhere (same time or older than the reply on file) isn't a new reply.
+    const msgAt = (() => { const d = Date.parse(latest.date || '') || Number(latest.internalDate) || 0; return d ? new Date(d).toISOString() : nowIso(); })();
+    if (p.status === 'replied' && p.replied_at && msgAt <= String(p.replied_at)) { patch(p.id, { reply_msg_ids: keys }).catch(() => {}); continue; }
     S.busy.add(p.id);
     const snippet = unentity(latest.snippet || latest.subject || '').slice(0, 600);
     const status = OPT_OUT.test(snippet) ? 'not_interested' : 'replied';
     const again = p.status === 'replied';
     const who = p.contact_name || p.email;
     try {
-      await patch(p.id, { status, replied_at: nowIso(), reply_snippet: snippet, reply_thread_id: t.id, reply_msg_ids: keys },
+      await patch(p.id, { status, replied_at: msgAt, reply_snippet: snippet, reply_thread_id: t.id, reply_msg_ids: keys },
         status === 'not_interested' ? `${who} said no thanks` : again ? `${who} wrote back again` : `${who} replied`);
       delete S.threads[t.id];
       toast(status === 'not_interested' ? `${p.name} said no thanks.` : `${p.name} ${again ? 'wrote back again' : 'replied'}. Open it to answer.`);
@@ -2808,7 +2818,18 @@ let sesTimer = null, sesWake = null;
 let sesAudio = null; // the recording from the recorder tab, until it's kept on the desk
 
 function sesSave() { if (SES && !SES.done) { try { localStorage.setItem(SES_KEY, JSON.stringify({ ...SES, rec: null, listening: false, interim: '' })); } catch (e) { /* storage blocked */ } } }
-function sesLoad() { try { const j = JSON.parse(localStorage.getItem(SES_KEY) || 'null'); return j && j.target ? j : null; } catch (e) { return null; } }
+function sesLoad() {
+  try {
+    const j = JSON.parse(localStorage.getItem(SES_KEY) || 'null');
+    if (!j || !j.target) return null;
+    // A session that's already saved on the desk, or was left behind over a day ago, isn't "in progress".
+    const started = Date.parse(j.startedAt || '') || 0;
+    const saved = (S.calls || []).some(c => (j.target.pid ? c.prospect_id === j.target.pid : c.business === j.target.business) && (Date.parse(c.started_at || '') || 0) >= started - 120000);
+    const old = !j.started || (started && Date.now() - started > 24 * 3600000);
+    if (j.done || saved || (old && !j.picking)) { localStorage.removeItem(SES_KEY); return null; }
+    return j;
+  } catch (e) { return null; }
+}
 function sesForget() { try { localStorage.removeItem(SES_KEY); } catch (e) { /* storage blocked */ } }
 const fmtClock = ms => { const s = Math.floor(ms / 1000); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const r = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(r).padStart(2, '0'); };
 const sesElapsed = () => SES ? SES.elapsedMs + (SES.runningSince ? Date.now() - SES.runningSince : 0) : 0;
@@ -3527,7 +3548,7 @@ render();
     if (!S.readOnly) db.collection('sessions').onSnapshot(snap => {
       S.calls = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.ended_at || b.started_at || '').localeCompare(String(a.ended_at || a.started_at || '')));
       S._sesPast = S.calls;
-      render();
+      render(); paintFab();
     }, () => { S.calls = []; });
     db.doc('meta/status').onSnapshot(snap => { S.meta = snap.exists ? (snap.data() || {}) : {}; S.metaLoaded = true; render(); if (!S.readOnly) migrateDrafts(); }, () => {});
     if (S.readOnly) {
