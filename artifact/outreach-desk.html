@@ -1785,10 +1785,35 @@ function readyReply(p) {
   if (!needsAnswer(p) || !p.reply_draft_id || !p.reply_draft) return '';
   const busy = S.working[p.id] === 'gdraft';
   return `<div class="ready-reply"><div class="help" style="margin:8px 0 4px">Your reply is written and waiting:</div>
-    <textarea class="ready-ta" data-gedit="${esc(p.id)}" aria-label="Your reply (you can edit it)" ${busy || S.readOnly ? 'disabled' : ''} style="display:block; width:100%; min-height:12em; box-sizing:border-box; white-space:pre-wrap; font:inherit; color:inherit; background:transparent; margin:0 0 8px; padding:10px; border:1px solid var(--line); border-radius:8px; resize:vertical">${esc(S.gEdits[p.id] ?? p.reply_draft)}</textarea>
+    <textarea class="ready-ta" data-gedit="${esc(p.id)}" aria-label="Your reply (you can edit it)" ${busy || S.readOnly ? 'disabled' : ''} style="display:block; width:100%; min-height:12em; box-sizing:border-box; white-space:pre-wrap; font:inherit; color:inherit; background:transparent; margin:0 0 8px; padding:10px; border:1px solid var(--line); border-radius:8px; resize:vertical">${esc(S.gEdits[p.id] ?? freshenDays(p.reply_draft, p.reply_draft_at || p.updated_at))}</textarea>
     <button class="btn solid" data-gdraft="${esc(p.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Sending…' : 'Send it'}</button>
     <span class="help" data-gsaved="${esc(p.id)}" style="margin-left:8px"></span>
     ${p.reply_draft_url ? `<a class="btn ghost" href="${esc(p.reply_draft_url)}" target="_blank" rel="noopener">Change it in Gmail ↗</a>` : ''}</div>`;
+}
+
+// A draft written one day and sent another: "today" / "tomorrow" in it would be wrong.
+// Fix those words for the day it actually goes out (New York time).
+function nyDay(d) { const x = new Date(d); return isNaN(x) ? null : x.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); }
+function freshenDays(text, writtenAt) {
+  const w = nyDay(writtenAt), t = nyDay(Date.now());
+  if (!text || !w || !t || w === t) return text;
+  const days = Math.round((Date.parse(t) - Date.parse(w)) / 86400000);
+  if (days <= 0) return text;
+  const wd = d => new Date(Date.parse(w) + d * 86400000 + 12 * 3600000).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  // One pass, so a word is never changed twice. "on Tuesday" mid-sentence, plain "Tuesday" after
+  // a word like "would" or at the start of a sentence.
+  return text.replace(/\b(this (morning|afternoon|evening)|tonight|tomorrow|today)\b/gi, (m, word, part, off, all) => {
+    const before = all.slice(0, off);
+    const start = !before.trim() || /[.!?\n]\s*$/.test(before);
+    const bare = start || /\b(would|on|by|until|till|for|see you|from|since|is|works?)\s+$/i.test(before);
+    const w0 = m.toLowerCase();
+    let out;
+    if (w0 === 'tomorrow') out = days === 1 ? 'today' : (bare ? wd(1) : `on ${wd(1)}`);
+    else if (w0 === 'today') out = days === 1 ? 'yesterday' : (bare ? wd(0) : `on ${wd(0)}`);
+    else if (w0 === 'tonight') out = days === 1 ? 'last night' : `${bare ? '' : 'on '}${wd(0)} night`;
+    else out = days === 1 ? `yesterday ${part.toLowerCase()}` : `${bare ? '' : 'on '}${wd(0)} ${part.toLowerCase()}`;
+    return start ? out[0].toUpperCase() + out.slice(1) : out;
+  });
 }
 
 async function sendReadyReply(p) {
@@ -1798,6 +1823,8 @@ async function sendReadyReply(p) {
   try {
     // Edited on the page: save the new text into the Gmail draft first, so what's sent is what he sees.
     if (S.gEdits[p.id] != null && S.gEdits[p.id] !== p.reply_draft) p = await saveReplyEdit(p, S.gEdits[p.id]);
+    const fresh = freshenDays(p.reply_draft, p.reply_draft_at || p.updated_at);
+    if (fresh && fresh !== p.reply_draft) p = await saveReplyEdit(p, fresh);
     await S.mcp.callTool(GMAIL, 'send_message', { draftId: p.reply_draft_id });
     const at = nowIso();
     await patch(p.id, { answered_at: at, reply_draft: null, reply_draft_id: null, reply_draft_url: null,
@@ -3204,7 +3231,7 @@ async function sesDraftThanks() {
 // Send the thank-you from the desk (saving any edits to the draft first).
 async function sesSendThanks() {
   const o = SES.out; if (!o.draftId) return;
-  const ta = $('#sessThanks'); const body = ta ? ta.value.trim() : o.thank_you;
+  const ta = $('#sessThanks'); const body = freshenDays(ta ? ta.value.trim() : o.thank_you, SES.endedAt || SES.pastDate);
   await sesStep('sent', async () => {
     if (!S.mcp) throw new Error('Gmail not connected');
     if (body && body !== o.draftText) { await S.mcp.callTool(GMAIL, 'update_draft', { draftId: o.draftId, body }); o.draftText = body; }
@@ -3245,7 +3272,7 @@ function renderSesOut(root) {
     ${o.state === 'error' ? `<div class="sess-help warn">${esc(o.error)}</div><div class="sess-actions"><button class="btn end" data-ses="retry">Try again</button></div>` : ''}
     ${o.state === 'done' ? `<div class="sess-out">
       <div class="sess-card"><h3>Summary</h3><p>${esc(o.summary || '')}</p></div>
-      <div class="sess-card"><h3>Thank-you email</h3><textarea id="sessThanks" ${o.thanked ? 'readonly' : ''}>${esc(o.thank_you || '')}</textarea>
+      <div class="sess-card"><h3>Thank-you email</h3><textarea id="sessThanks" ${o.thanked ? 'readonly' : ''}>${esc(o.thanked ? (o.thank_you || '') : freshenDays(o.thank_you || '', SES.endedAt || SES.pastDate))}</textarea>
         <div class="sess-actions" style="position:static; margin-top:10px">${sendBtn}</div></div>
       <div class="sess-card"><h3>Your action items</h3>${list(o.action_items)}</div>
       <div class="sess-card"><h3>Next step</h3><p>${esc(o.next_step || '')}${o.next_step_due ? ` <span style="color:var(--muted)">· by ${esc(o.next_step_due)}</span>` : ''}</p><p style="color:var(--muted); margin-top:6px">Connect.AI fit: ${esc(o.connect_ai_fit || 'unclear')}</p></div>
