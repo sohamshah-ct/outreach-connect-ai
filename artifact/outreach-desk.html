@@ -361,9 +361,41 @@ table.list a{color:var(--info); text-decoration:none;}
 .stage.talks,.stage.applied,.stage.selected{background:var(--warn-soft); color:var(--warn);}
 .stage.active,.stage.completed{background:var(--ok-soft); color:var(--ok);}
 .stage.passed{background:var(--crimson-soft); color:var(--crimson);}
-.reply-banner{border-color:var(--crimson); background:var(--crimson-soft);}
-.reply-links{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
-.reply-links .btn{background:var(--paper);}
+.inbox{margin-top:16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow:var(--shadow); overflow:hidden;}
+.inbox:not(.calm){border-top:3px solid var(--crimson);}
+.ib-head{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; padding:14px 16px 10px;}
+.ib-head > div{display:flex; flex-direction:column; gap:3px;}
+.ib-head b{font-family:var(--serif); font-size:18px; font-weight:600; color:var(--ink);}
+.inbox:not(.calm) .ib-head .eyebrow{color:var(--crimson);}
+.ib-hint{font-size:12.5px; color:var(--muted);}
+.ib-list{list-style:none; margin:0; padding:0;}
+.ib-row{display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:12px; align-items:center; padding:10px 16px; border-top:1px solid var(--line); cursor:pointer; transition:background .12s;}
+.ib-row:hover,.ib-row:focus-visible{background:var(--wash); outline:none;}
+.ib-age{font-family:var(--mono); font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; padding-right:4px;}
+.ib-age.old{color:var(--crimson); font-weight:600;}
+.ib-main{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.ib-who{font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.ib-biz{color:var(--muted);}
+.ib-said{font-size:13px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.ib-side{display:flex; align-items:center; gap:6px;}
+.ib-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:3px 8px; border-radius:999px; background:var(--ok-soft); color:var(--ok); white-space:nowrap;}
+.ib-go{pointer-events:none;}
+.ib-done{color:var(--muted); padding:7px 10px;}
+.ib-done:hover{color:var(--ink);}
+.ib-foot{display:flex; flex-direction:column; gap:8px; padding:10px 16px 12px; border-top:1px solid var(--line); background:var(--wash);}
+.inbox.calm .ib-foot{border-top:none; padding-top:2px;}
+.ib-group{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
+.ib-group .eyebrow{margin-right:4px; min-width:110px;}
+.ib-pill{border:1px solid var(--line-strong); background:var(--paper); color:var(--ink-2); border-radius:999px; padding:4px 11px; font-size:12.5px; cursor:pointer; font-family:var(--sans);}
+.ib-pill b{font-weight:600; color:var(--ink); margin-right:3px;}
+.ib-pill:hover{border-color:var(--ink-2);}
+.ib-pill.quiet{border-style:dashed;}
+@media (max-width:640px){
+  .ib-row{grid-template-columns:40px minmax(0,1fr); row-gap:8px; padding:10px 12px;}
+  .ib-side{grid-column:2; flex-wrap:wrap;}
+  .ib-said{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+  .ib-group .eyebrow{min-width:0; width:100%;}
+}
 .reply-box{border:1px solid var(--line); border-radius:8px; padding:12px 14px;}
 .reply-box.waiting{border-color:var(--crimson);}
 .reply-box.waiting > .eyebrow{color:var(--crimson);}
@@ -771,8 +803,25 @@ const needsAnswer = p => {
   if (p.status !== 'replied') return false;
   const r = String(p.replied_at || '');
   const since = x => x && String(x) >= r;
-  return !since(p.answered_at) && !since(p.thanked_at) && !since(p.call_confirmed_at) && !since(p.reply_approved_at) && !p.scheduled_send_at;
+  if (since(p.answered_at) || since(p.thanked_at) || since(p.call_confirmed_at) || since(p.reply_approved_at) || p.scheduled_send_at) return false;
+  if (replyLater(p)) return false;
+  return !upcomingCall(p);
 };
+// They asked to be contacted later (or are out of office): parked until snooze_until (YYYY-MM-DD).
+const replyLater = p => p.status === 'replied' && p.snooze_until && String(p.snooze_until) > dayKey(new Date());
+// A call that's on the calendar and still ahead counts as handled.
+function upcomingCall(p) {
+  if (!p.call_at || !(p.call_confirmed_at || (p.invite && p.invite.start === p.call_at)) || (p.invite && p.invite.canceled_at)) return null;
+  const at = nyLocal(p.call_at);
+  return at && at.getTime() > Date.now() - 30 * 60000 ? at : null;
+}
+const callLabel = at => at.toLocaleString(undefined, { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+// First line of what they wrote, without the quoted thread underneath.
+function saidLine(p) {
+  let t = String(p.reply_snippet || '').replace(/\s+/g, ' ').split(/\bOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,|\bFrom: /)[0].trim();
+  t = t.replace(/^(hi|hello|hey|dear)\s+soham[,!.]?\s*/i, '');
+  return t.length > 120 ? t.slice(0, 117).replace(/\s+\S*$/, '') + '…' : t;
+}
 
 // ---------- state ----------
 const S = {
@@ -1552,10 +1601,32 @@ function renderNotice() {
     html += `<div class="banner" style="display:block"><b><span class="live" style="margin:0 6px 0 0"><i></i></span>Research run in progress</b><p>${esc(S.meta.progress)}${S.meta.progress_at ? ` · updated ${ago(S.meta.progress_at)}` : ''}</p>${total ? `<div style="margin-top:10px; display:flex; align-items:center; gap:12px"><div role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}" aria-label="Businesses researched" style="flex:1; height:6px; background:var(--wash-2); border-radius:6px; overflow:hidden"><div style="width:${pct}%; height:100%; background:var(--navy); border-radius:6px; transition:width .4s"></div></div><span class="mono" style="white-space:nowrap; font-variant-numeric:tabular-nums">${done} of ${total} researched</span></div>` : ''}</div>`;
   }
   const waiting = S.prospects.filter(needsAnswer).sort((a, b) => String(a.replied_at).localeCompare(String(b.replied_at)));
-  if (waiting.length) {
-    html += `<div class="banner reply-banner"><div style="min-width:0"><b>${waiting.length === 1 ? '1 person wrote back' : `${waiting.length} people wrote back`} and ${waiting.length === 1 ? 'is' : 'are'} waiting on you</b>
-      <p>Open one to read the whole email, get a reply drafted, and make a prep sheet for the call.</p>
-      <div class="reply-links">${waiting.map(p => `<button class="btn sm" data-open="${esc(p.id)}">${esc(shortName(p.name))}<span style="opacity:.6">· ${esc(ago(p.replied_at))}</span></button>`).join('')}</div></div></div>`;
+  const later = S.prospects.filter(p => replyLater(p) && !upcomingCall(p)).sort((a, b) => String(a.snooze_until).localeCompare(String(b.snooze_until)));
+  const coming = S.prospects.map(p => ({ p, at: p.status === 'replied' || p.call_at ? upcomingCall(p) : null })).filter(x => x.at && x.at.getTime() < Date.now() + 14 * 86400000).sort((a, b) => a.at - b.at);
+  if (waiting.length || coming.length || later.length) {
+    const days = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+    const row = p => {
+      const d = days(p.replied_at);
+      const who = p.contact_name ? `<b>${esc(p.contact_name)}</b><span class="ib-biz"> · ${esc(shortName(p.name))}</span>` : `<b>${esc(shortName(p.name))}</b>`;
+      const said = saidLine(p);
+      return `<li class="ib-row" data-open="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(shortName(p.name))}">
+        <span class="ib-age${d >= 3 ? ' old' : ''}" title="Wrote back ${esc(when(p.replied_at))}">${d === 0 ? 'today' : d + 'd'}</span>
+        <span class="ib-main"><span class="ib-who">${who}</span>${said ? `<span class="ib-said">${esc(said)}</span>` : ''}</span>
+        <span class="ib-side">${p.reply_draft_id ? '<span class="ib-tag">Draft ready</span>' : ''}
+          <span class="btn sm solid ib-go">Reply</span>
+          ${S.readOnly ? '' : `<button class="btn sm ghost ib-done" data-handled="${esc(p.id)}" title="Take it off this list without replying">Done</button>`}</span>
+      </li>`;
+    };
+    html += `<section class="inbox${waiting.length ? '' : ' calm'}">
+      <header class="ib-head"><div><span class="eyebrow">${waiting.length ? 'Needs your reply' : 'Inbox'}</span>
+        <b>${waiting.length ? `${waiting.length} ${waiting.length === 1 ? 'person is' : 'people are'} waiting on you` : 'You\'re caught up'}</b></div>
+        ${waiting.length ? '<span class="ib-hint">Oldest first. Open one to read the full email and send the drafted reply.</span>' : ''}</header>
+      ${waiting.length ? `<ul class="ib-list">${waiting.map(row).join('')}</ul>` : ''}
+      ${coming.length || later.length ? `<div class="ib-foot">
+        ${coming.length ? `<div class="ib-group"><span class="eyebrow">Calls coming up</span>${coming.map(x => `<button class="ib-pill" data-open="${esc(x.p.id)}"><b>${esc(shortName(x.p.name))}</b> ${esc(callLabel(x.at))}</button>`).join('')}</div>` : ''}
+        ${later.length ? `<div class="ib-group"><span class="eyebrow">Later</span>${later.map(p => `<button class="ib-pill quiet" data-open="${esc(p.id)}" title="${esc(p.snooze_reason || '')}"><b>${esc(shortName(p.name))}</b> after ${esc(new Date(p.snooze_until + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</button>`).join('')}</div>` : ''}
+      </div>` : ''}
+    </section>`;
   }
   const queued = S.prospects.filter(p => p.status === 'queued').length;
   if (queued && !inSendWindow() && S.tab !== 'review') {
@@ -2719,6 +2790,12 @@ document.addEventListener('click', async e => {
   if (goCall) { startCallFor(goCall.dataset.callGo); return; }
   const callBtn = t.closest('[data-open-call]');
   if (callBtn) { openCall(callBtn.dataset.openCall); return; }
+  const handled = t.closest('[data-handled]');
+  if (handled) {
+    const id = handled.dataset.handled;
+    patch(id, { answered_at: nowIso() }, 'Marked as no reply needed').then(() => toast('Taken off the list.', { undo: () => patch(id, { answered_at: null }, 'Put back on the reply list').catch(() => {}) })).catch(err => toast(err.message, { err: true }));
+    return;
+  }
   const opener = t.closest('[data-open]');
   if (opener) { openDrawer(opener.dataset.open); return; }
   const mode = t.closest('[data-rvmode]');
@@ -2763,6 +2840,7 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.drawerId) { closeDrawer(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.classList.contains('ib-row')) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
   if (S.tab !== 'review' || S.drawerId || e.metaKey || e.ctrlKey || e.altKey) return;
   if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
   const k = e.key.toLowerCase();
