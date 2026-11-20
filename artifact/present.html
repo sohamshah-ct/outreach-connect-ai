@@ -117,7 +117,7 @@ function ctlHtml(){
     h+='<button id="b-go"'+(busy?' disabled':'')+'>'+(live?'Update summary':'Show CRM summary')+'</button>';
   }
   if(live)h+='<button class="stop" id="b-stop"'+(busy?' disabled':'')+'>Stop showing</button>';
-  h+='<div class="msg">'+esc(msg||(mirror?'Keep this window open. It follows your desk; the class screen catches up a few seconds behind.':'To show your desk, open it and tap Present to class. This window picks it up on its own.'))+'</div>';
+  h+='<div class="msg">'+esc(msg||(mirror?'Keep this window open. It follows your desk; the class screen catches up a few seconds behind.':'To show your desk, open it in another tab and click Present to class. This page picks it up within a few seconds; keep it open while you present.'))+'</div>';
   h+='</div></div>';
   return h;
 }
@@ -168,22 +168,41 @@ async function flush(){
   try{await publish({live:true,mode:'mirror',at:new Date().toISOString(),h:p.h,opts:Object.assign({},opts),mirror:p.m})}
   catch(e){msg=(e&&e.message)||'Couldn’t update the class screen.';render()}
 }
-var queued=null;
-window.addEventListener('message',function(e){
-  var d=e.data;if(!d||typeof d!=='object')return;
-  if(d.type!=='outreach-desk-view'&&d.type!=='outreach-desk-stop')return;
-  if(!isOwner){queued={d:d,src:e.source};return}
-  handle(d,e.source);
-});
-function handle(d,src){
-  if(d.type==='outreach-desk-view'){try{src&&src.postMessage({type:'outreach-present-ack'},'*')}catch(e){}takeSnap(d.snap)}
-  else if(d.type==='outreach-desk-stop'&&state.live){pending=null;clearTimeout(pubTimer);pubTimer=null;stop()}
+// The desk drops a copy of its screen into one Gmail draft; this page (open in the
+// owner's own browser) reads it every few seconds and republishes it for the class.
+var RELAY_DRAFT='r-4968585193584265199', lastK='', cssKey='', cssText='', polling=false;
+async function gunzip64(b64){
+  var bin=atob(String(b64).replace(/\s+/g,'')),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
-function sayReady(){
-  var targets=[];
-  try{if(window.opener)targets.push(window.opener)}catch(e){}
-  try{if(window.top&&window.top.opener)targets.push(window.top.opener)}catch(e){}
-  targets.forEach(function(t){try{t.postMessage({type:'outreach-present-ready'},'*')}catch(e){}});
+async function pollRelay(){
+  if(polling)return;polling=true;
+  var wait=4000;
+  try{
+    var mcp=await claude.use('mcp');
+    if(!mcp){msg='This view can’t reach Gmail. Open the page on claude.ai while signed in.';render();wait=15000;return}
+    var r=await mcp.callTool('Gmail','get_draft',{draftId:RELAY_DRAFT,messageFormat:'PLAIN_TEXT'},{cache:false});
+    var txt=String((r.payload||{}).plaintextBody||'');
+    var m=/OUTREACH-PRESENT\s*([\s\S]*?)\s*END\s*$/.exec(txt.trim());
+    var d=null;try{d=m?JSON.parse(m[1]):null}catch(e){d=null}
+    var fresh=d&&d.on&&d.z&&Date.now()-Date.parse(d.at||0)<100000;
+    if(!fresh){
+      wait=state.live&&state.mode==='mirror'?4000:8000;
+      if(state.live&&state.mode==='mirror'&&!busy){pending=null;clearTimeout(pubTimer);pubTimer=null;lastK='';await stop()}
+      return;
+    }
+    if(d.k===lastK)return;
+    if(d.css&&d.css!==cssKey){cssText=await gunzip64(d.css);cssKey=d.css}
+    if(!cssText)return;
+    var body=await gunzip64(d.z);
+    lastK=d.k;
+    if(msg&&/Gmail|draft/.test(msg)){msg='';}
+    takeSnap({css:cssText,body:body,bodyClass:d.bodyClass,theme:d.theme,y:d.y,dy:d.dy,w:d.w});
+  }catch(e){
+    var c=e&&e.code;
+    msg=c==='needs_reauth'?'Gmail needs reconnecting: claude.ai → Settings → Connectors.':c==='not_found'||/not.?found/i.test((e&&e.message)||'')?'The Gmail draft this page reads from is gone. Ask Claude to set up presenting again.':'Couldn’t check for your desk: '+String((e&&e.message)||e).slice(0,140);
+    render();wait=10000;
+  }finally{polling=false;setTimeout(pollRelay,wait)}
 }
 
 function render(){
@@ -273,7 +292,7 @@ async function stop(){
 render();
 (async function(){
   try{var u=await claude.use('user');isOwner=u?!!(await u.isOwner()):false}catch(e){isOwner=false}
-  if(isOwner){render();sayReady();if(queued){handle(queued.d,queued.src);queued=null}}
+  if(isOwner){render();pollRelay()}
 })();
 })();
 </script>

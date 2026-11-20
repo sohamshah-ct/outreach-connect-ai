@@ -396,10 +396,51 @@ table.list a{color:var(--info); text-decoration:none;}
   .ib-said{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
   .ib-group .eyebrow{min-width:0; width:100%;}
 }
-.reply-box{border:1px solid var(--line); border-radius:8px; padding:12px 14px;}
-.reply-box.waiting{border-color:var(--crimson);}
-.reply-box.waiting > .eyebrow{color:var(--crimson);}
-.reply-box .field textarea{min-height:140px;}
+/* Reply panel: plain labels, the times it offers as chips, one row of buttons. */
+.reply-box{border:1px solid var(--line); border-radius:16px; background:var(--paper); overflow:hidden;}
+.reply-box.waiting{box-shadow:inset 3px 0 0 var(--crimson);}
+.rb-head{display:flex; justify-content:space-between; align-items:baseline; gap:6px 14px; flex-wrap:wrap; padding:16px 20px 0;}
+.rb-head h3{font-family:var(--serif); font-size:21px; font-weight:700; letter-spacing:-.01em;}
+.rb-when{font-size:14px; color:var(--muted);}
+.reply-box.waiting .rb-when{color:var(--crimson);}
+.rb-sec{padding:14px 20px;}
+.rb-sec + .rb-sec{border-top:1px solid var(--line);}
+.rb-to{display:block; font-size:13.5px; color:var(--muted); margin-bottom:8px; overflow-wrap:anywhere;}
+.reply-box textarea#rBody{display:block; width:100%; min-height:220px; resize:vertical; border:1px solid var(--line-strong); border-radius:12px; padding:14px 16px; background:var(--paper); color:var(--ink); font:16px/1.65 var(--sans);}
+.reply-box textarea#rBody:focus{outline:none; border-color:var(--signal); box-shadow:0 0 0 3px var(--signal-soft);}
+.rb-row{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+.rb-label{font-size:14px; font-weight:700; color:var(--ink);}
+.rb-help{font-size:13.5px; color:var(--muted); margin:8px 0 0; line-height:1.45;}
+.rb-times{display:flex; flex-wrap:wrap; gap:8px;}
+.tslot{display:inline-flex; align-items:center; gap:8px; border-radius:10px; padding:7px 12px; font-size:14px; line-height:1.3; background:var(--ok-soft); color:var(--ink);}
+.tslot i{width:8px; height:8px; border-radius:50%; background:var(--ok); flex-shrink:0;}
+.tslot small{font-size:12.5px; color:var(--crimson);}
+.tslot.bad{background:var(--crimson-soft);}
+.tslot.bad i{background:var(--crimson);}
+.rb-avail summary{cursor:pointer; list-style:none; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:14px; font-weight:700; color:var(--ink);}
+.rb-avail summary::-webkit-details-marker{display:none;}
+.rb-avail summary::before{content:"▸"; color:var(--muted); font-weight:400; transition:transform .15s; display:inline-block;}
+.rb-avail[open] summary::before{transform:rotate(90deg);}
+.rb-avail summary span{font-weight:400; color:var(--muted); font-size:13.5px;}
+.rb-avail-body{display:flex; flex-direction:column; gap:14px; margin-top:12px;}
+.rb-hours{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; font-size:14px; color:var(--ink-2);}
+.rb-hours input, .dayoff-add input{border:1px solid var(--line-strong); border-radius:8px; padding:6px 8px; background:var(--paper); color:var(--ink); font:14px var(--sans);}
+.rb-days{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;}
+.dayoff{display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:4px 6px 4px 12px; background:var(--wash-2); font-size:14px; color:var(--ink);}
+.dayoff button{border:none; background:none; color:var(--muted); cursor:pointer; font-size:16px; line-height:1; width:22px; height:22px; border-radius:50%;}
+.dayoff button:hover{background:var(--line); color:var(--ink);}
+.dayoff-add{display:inline-flex; gap:6px; align-items:center;}
+.rb-avail .field{margin:0;}
+.rb-avail .field label{font-family:var(--sans); font-size:14px; letter-spacing:0; text-transform:none; color:var(--ink); font-weight:700;}
+.rb-actions{display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:14px 20px; background:var(--wash); border-top:1px solid var(--line);}
+.rb-actions .spacer{flex:1;}
+.reply-box .btn{font-family:var(--sans); text-transform:none; letter-spacing:0; font-size:14.5px; font-weight:600; padding:10px 18px;}
+.reply-box .btn.sm{font-size:13.5px; padding:7px 14px;}
+.btn.text{border:none; background:none; padding:8px 6px; font-weight:400 !important; color:var(--muted); text-decoration:underline; text-decoration-color:var(--line-strong); text-underline-offset:3px;}
+.btn.text:hover{color:var(--ink); text-decoration-color:currentColor;}
+.rb-actions .confirm{background:var(--warn-soft);}
+.rb-actions .confirm span{font-size:14px;}
+@media (max-width:640px){ .rb-head,.rb-sec,.rb-actions{padding-left:14px; padding-right:14px;} .rb-actions .spacer{display:none;} }
 .prep{margin-top:18px;}
 .prep-text{white-space:pre-wrap; font-family:var(--sans); font-size:13px; line-height:1.55; color:var(--ink-2); background:var(--wash); border-radius:8px; padding:12px 14px; margin:0 0 10px; min-height:60px;}
 
@@ -533,7 +574,7 @@ footer{font-size:11px;}
 .bperson.on{border-color:var(--navy); box-shadow:0 0 0 1px var(--navy) inset;}
 .bperson:focus-visible{outline:2px solid var(--navy); outline-offset:2px;}
 /* View-only (anyone but the student): same data, no buttons that change anything. */
-body.ro [data-act], body.ro [data-mark], body.ro [data-gdraft], body.ro #skipWeak, body.ro #sendQueue, body.ro .queue-bar, body.ro .confirm { display: none !important; }
+body.ro [data-act], body.ro [data-mark], body.ro [data-gdraft], body.ro #skipWeak, body.ro #sendQueue, body.ro .queue-bar, body.ro .confirm, body.ro .rb-avail, body.ro .rb-actions { display: none !important; }
 body.ro #drawerBody input, body.ro #drawerBody textarea, body.ro #reviewPane input, body.ro #reviewPane textarea { pointer-events: none; background: var(--wash, transparent); }
 /* ---------- live session (call or meeting) ---------- */
 .sess-fab{position:fixed; right:max(16px, env(safe-area-inset-right, 0px)); bottom:calc(18px + env(safe-area-inset-bottom, 0px)); z-index:45; display:inline-flex; align-items:center; gap:8px; border:none; border-radius:999px; padding:13px 20px; background:var(--ink); color:var(--paper); font:600 15px/1 var(--sans); box-shadow:0 12px 30px -10px rgba(0,0,0,.5); cursor:pointer;}
@@ -750,7 +791,7 @@ const inClassArea = p => CLASS_STATES.includes(stateOf(p));
 const placeLabel = p => stateOf(p) === 'CT' ? (p.town || '') : `${p.town || ''}, ${stateOf(p)}`;
 // The student's own details come from their profile (meta/status.settings,
 // filled in at sign-up). Nothing personal is written into this page.
-const DEFAULTS = { daily_cap: 20, followup_after_days: 4, sender_name: '', sender_major: '', grad_year: '', school_short: 'UConn', school_long: 'University of Connecticut', school_email: '', sender_email: '', linkedin_url: '', background: '', why: '', photo: '', desk_url: '', free_times: 'Weekday afternoons after 2pm' };
+const DEFAULTS = { daily_cap: 20, followup_after_days: 4, sender_name: '', sender_major: '', grad_year: '', school_short: 'UConn', school_long: 'University of Connecticut', school_email: '', sender_email: '', linkedin_url: '', background: '', why: '', photo: '', desk_url: '', free_times: 'Weekday afternoons after 2pm', call_from: '14:00', call_to: '18:00', blocked_days: [] };
 function me() {
   const s = settings();
   const name = String(s.sender_name || '').trim();
@@ -797,6 +838,244 @@ function nextWeekdays(n) {
   }
   return out;
 }
+// ---------- call times: never offer the same time twice ----------
+// Times are New York wall-clock strings ("2026-11-30T14:00"). Each reply that
+// offers a call remembers the times in it: draft_slots while it waits,
+// offered_slots once it's sent. A time is taken when it's on the calendar
+// (meta/calendar), on a day off, a confirmed call, or offered to someone who
+// hasn't picked yet. When a reply goes out, every waiting reply whose times now
+// clash gets new ones (fixDocket), so no two people are offered the same time.
+const pad2 = n => String(n).padStart(2, '0');
+const toMin = hhmm => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || '')); return m ? +m[1] * 60 + +m[2] : null; };
+const fromMin = n => `${pad2(Math.floor(n / 60))}:${pad2(n % 60)}`;
+const fmtHour = n => { const h = Math.floor(n / 60), mi = n % 60; return `${h % 12 || 12}${mi ? ':' + pad2(mi) : ''}${h < 12 ? 'am' : 'pm'}`; };
+const nyToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+const dayAdd = (day, n) => { const d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dayWd = day => new Date(day + 'T12:00:00Z').getUTCDay();
+const dayName = day => new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+function dayOffList() { return [...new Set((settings().blocked_days || []).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort(); }
+function callHours() {
+  const s = settings(); const a = toMin(s.call_from), b = toMin(s.call_to);
+  return a != null && b != null && b - a >= 30 ? { from: a, to: b } : { from: 14 * 60, to: 18 * 60 };
+}
+const slotMs = x => { const s = nyLocal(x.start), e = nyLocal(x.end); return s && e ? [s.getTime(), e.getTime()] : null; };
+function slotLabel(x) {
+  const d = new Date(x.start.slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' });
+  const a = toMin(x.start.slice(11)), b = toMin(x.end.slice(11));
+  if (b - a <= 30) return `${d} at ${fmtHour(a)}`;
+  const A = fmtHour(a), B = fmtHour(b);
+  return `${d}, ${A.slice(-2) === B.slice(-2) ? A.slice(0, -2) : A} to ${B}`;
+}
+// Everything already spoken for, apart from this business's own times.
+function takenTimes(exceptId) {
+  const out = [];
+  for (const b of ((S.cal || {}).busy || [])) { const s = Date.parse(b.start), e = Date.parse(b.end); if (s && e) out.push({ s, e, why: 'on your calendar' }); }
+  for (const p of S.prospects) {
+    if (p.id === exceptId) continue;
+    const up = upcomingCall(p);
+    if (up) out.push({ s: up.getTime(), e: up.getTime() + (((p.invite || {}).mins) || 30) * 60000, why: `call with ${shortName(p.name)}` });
+    if (p.status !== 'replied' || replyLater(p) || !Array.isArray(p.offered_slots)) continue;
+    // Offered in a sent reply: held until they pick (a confirmed call takes over).
+    if (p.call_confirmed_at && String(p.call_confirmed_at) >= String(p.offered_at || '')) continue;
+    for (const x of p.offered_slots) { const m = slotMs(x); if (m && m[1] > Date.now()) out.push({ s: m[0], e: m[1], why: `offered to ${shortName(p.name)}` }); }
+  }
+  return out;
+}
+// Why a time can't be offered, or '' when it's fine. reserved: times other waiting replies offer.
+function slotProblem(x, { exceptId, reserved = [], taken } = {}) {
+  const m = slotMs(x); if (!m) return 'not a time';
+  if (m[1] < Date.now()) return 'already passed';
+  if (m[0] < Date.now() + 18 * 3600000) return 'too soon';
+  if (dayOffList().includes(x.start.slice(0, 10))) return 'a day off';
+  if ([0, 6].includes(dayWd(x.start.slice(0, 10)))) return 'a weekend';
+  const pad = 15 * 60000;
+  for (const t of (taken || takenTimes(exceptId))) if (m[0] < t.e + pad && m[1] > t.s - pad) return t.why;
+  // Same 15-minute gap as for held times, so sending one reply never makes another clash.
+  for (const r of reserved) { const rm = slotMs(r); if (rm && m[0] < rm[1] + pad && m[1] > rm[0] - pad) return r.who ? `too close to a time offered to ${r.who}` : 'too close to another reply\'s time'; }
+  return '';
+}
+// The first open stretch on each coming weekday, inside call hours, up to an hour long.
+function openWindows(exceptId, reserved = [], want = 3) {
+  const { from, to } = callHours();
+  const taken = takenTimes(exceptId);
+  const out = [];
+  const today = nyToday();
+  for (let i = 1; i <= 21 && out.length < want; i++) {
+    const day = dayAdd(today, i), wd = dayWd(day);
+    if (wd === 0 || wd === 6 || dayOffList().includes(day)) continue;
+    let run = null, got = null;
+    for (let mm = from; mm + 30 <= to && !got; mm += 15) {
+      const ok = !slotProblem({ start: `${day}T${fromMin(mm)}`, end: `${day}T${fromMin(mm + 30)}` }, { exceptId, reserved, taken });
+      if (ok) { run = run && mm <= run[1] ? [run[0], mm + 30] : [mm, mm + 30]; if (run[1] - run[0] >= 60) got = run; }
+      else if (run) got = run;
+    }
+    got = got || run;
+    if (got) out.push({ start: `${day}T${fromMin(got[0])}`, end: `${day}T${fromMin(got[1])}` });
+  }
+  return out;
+}
+// Which times a reply offers. Claude reads them once per wording; kept on the business (draft_slots).
+const textKey = t => { let h = 0; for (const c of String(t || '').trim()) h = (h * 31 + c.charCodeAt(0)) | 0; return String(h); };
+const slotCache = new Map();
+const slotReads = new Map();
+const slotFail = new Set(); // wordings Claude couldn't read, so a re-render doesn't ask again
+function cachedSlots(p, text) {
+  const k = textKey(text);
+  const c = p.draft_slots;
+  if (c && c.key === k && Array.isArray(c.slots)) return c.slots;
+  return slotCache.get(p.id + ':' + k) || null;
+}
+const cleanSlot = x => {
+  const a = toMin(x && x.start), b = toMin(x && x.end);
+  return x && /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') && a != null && b != null && b > a ? { start: `${x.date}T${fromMin(a)}`, end: `${x.date}T${fromMin(b)}` } : null;
+};
+async function readSlots(p, text, writtenAt) {
+  const have = cachedSlots(p, text); if (have) return have;
+  const k = p.id + ':' + textKey(text);
+  if (slotReads.has(k)) return slotReads.get(k);
+  const job = (async () => {
+    if (!S.sample || !String(text || '').trim()) return [];
+    const day = nyDay(writtenAt || Date.now()) || nyToday();
+    const wd = new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long' });
+    const prompt = `Here is an email reply that ${me().first} wrote on ${wd}, ${day} (New York time).
+
+List every specific time window it offers for a call or meeting. Turn words like "today", "this afternoon", "tomorrow", "this Thursday" or a bare weekday into the real date, counting from ${wd}, ${day} (a bare weekday means the next one after that day; "Monday (Nov 30)" means that date). A single time like "3pm" is a 30-minute window. "Anytime between 5 and 7pm" is 17:00 to 19:00. Use 24-hour times. If it offers no specific times (for example it says they'll text to pick one, or only links a booking page), return an empty list.
+
+Return JSON: {"slots": [{"date": "YYYY-MM-DD", "start": "HH:MM", "end": "HH:MM"}]}
+
+EMAIL:
+${text}`;
+    const out = await S.sample.json(prompt, { modelTier: 'quick', cache: false });
+    const slots = (out && Array.isArray(out.slots) ? out.slots : []).map(cleanSlot).filter(Boolean).slice(0, 8);
+    slotCache.set(k, slots);
+    if (!S.readOnly) patch(p.id, { draft_slots: { key: textKey(text), slots, read_at: nowIso() } }).catch(() => {});
+    return slots;
+  })();
+  slotReads.set(k, job);
+  try { return await job; } catch (e) { slotReads.delete(k); slotFail.add(k); throw e; }
+}
+const draftOf = p => S.replyDrafts[p.id] ?? S.gEdits[p.id] ?? p.reply_draft ?? '';
+// Times the other waiting replies offer (ones already read).
+function otherDraftSlots(exceptId) {
+  const out = [];
+  for (const p of S.prospects) {
+    if (p.id === exceptId || !needsAnswer(p)) continue;
+    const c = cachedSlots(p, draftOf(p));
+    if (c) out.push(...c.map(x => ({ ...x, who: shortName(p.name) })));
+  }
+  return out;
+}
+// Swap only the times that don't work, keeping every other word. Claude picks
+// from open options, skipping any that clash with what they said about their week.
+// Returns { body, slots, picked } or null.
+async function retimeDraft(p, text, keep, options, need, bad) {
+  const said = freshPart(String(p.reply_snippet || '')).slice(0, 600);
+  const prompt = `This is a reply ${me().first} hasn't sent yet to ${p.contact_name || shortName(p.name)} at ${shortName(p.name)}:
+
+---
+${text}
+---
+${said ? `\nWhat they wrote to ${me().first}: "${said}"\n` : ''}
+${bad.length ? `These times in it don't work anymore: ${bad.map(b => `${slotLabel(b.x)} (${b.why})`).join('; ')}.` : ''}
+${keep.length ? `Keep these times exactly as they are: ${keep.map(slotLabel).join('; ')}.` : ''}
+Offer ${need} of these open times instead (New York time). Skip any that clash with what they said about when they're free:
+${options.map((w, i) => `${i + 1}. ${slotLabel(w)}`).join('\n')}
+
+Change only the times. Keep every other word the same: same greeting, same sign-off, same layout (if the times were a list, keep a list). Write times the way a person would, like "Monday, Nov 30 between 2 and 3pm". If it asked them to pick a time, keep that. Don't mention that times changed.
+Return JSON: {"body": "the whole email", "picked": [the numbers of the options you used]}`;
+  const out = await S.sample.json(prompt, { modelTier: 'default', cache: false });
+  const body = String((out && out.body) || '').trim();
+  if (body.length < 20) return null;
+  let picked = (Array.isArray(out.picked) ? out.picked : []).map(n => options[Number(n) - 1]).filter(Boolean);
+  picked = [...new Set(picked)].slice(0, need + 1);
+  if (!picked.length) picked = options.slice(0, need);
+  return { body, slots: [...keep, ...picked], picked };
+}
+// Which times in a reply still work, given what's taken and what other replies hold.
+function splitSlots(p, slots, reserved) {
+  const keep = [], bad = [];
+  for (const x of slots) { const why = slotProblem(x, { exceptId: p.id, reserved }); if (why) bad.push({ x, why }); else keep.push(x); }
+  return { keep, bad, need: Math.max(1, 2 - keep.length) };
+}
+async function saveRetimed(p, body, windows, why) {
+  let id = p.reply_draft_id || null;
+  if (id) {
+    if (!S.mcp) throw new Error('Gmail isn\'t available in this view.');
+    const res = await S.mcp.callTool(GMAIL, 'update_draft', { draftId: id, body });
+    id = (res.payload || {}).id || id;
+  }
+  slotCache.set(p.id + ':' + textKey(body), windows);
+  await patch(p.id, { reply_draft: body, reply_draft_id: id, reply_draft_at: nowIso(), draft_slots: { key: textKey(body), slots: windows, read_at: nowIso() } },
+    `New times in the waiting reply: ${windows.map(slotLabel).join('; ')}${why ? ` (${why})` : ''}`);
+  delete S.replyDrafts[p.id]; delete S.gEdits[p.id];
+}
+// Go through every waiting reply, oldest first; any that offers a time that's
+// gone (passed, a day off, on the calendar, a call, or offered to someone
+// else) gets new open times. Runs when the page opens and after each reply is sent.
+let fixing = false;
+async function fixDocket({ quiet = false } = {}) {
+  if (fixing || S.readOnly || !S.sample || !S.db || !S.loaded || !S.metaLoaded) return [];
+  fixing = true;
+  const changed = [], stuck = [];
+  try {
+    const list = S.prospects.filter(p => needsAnswer(p) && String(p.reply_draft || '').trim())
+      .sort((a, b) => String(a.replied_at || '').localeCompare(String(b.replied_at || '')));
+    const entries = [];
+    for (const p0 of list) {
+      const p = S.prospects.find(x => x.id === p0.id) || p0;
+      // Being edited or written right now: leave it alone.
+      if (S.working[p.id] || S.gEdits[p.id] != null || (S.replyDrafts[p.id] != null && S.replyDrafts[p.id] !== p.reply_draft)) continue;
+      const slots = await readSlots(p, p.reply_draft, p.reply_draft_at || p.updated_at);
+      if (slots.length) entries.push({ p, text: p.reply_draft, slots });
+    }
+    // First, every time that still works stays put (the oldest reply wins a clash).
+    const reserved = [];
+    for (const e of entries) {
+      Object.assign(e, splitSlots(e.p, e.slots, reserved));
+      reserved.push(...e.keep.map(x => ({ ...x, who: shortName(e.p.name) })));
+    }
+    // Then the ones that don't work get open times in their place.
+    for (const e of entries.filter(x => x.bad.length)) {
+      const options = openWindows(e.p.id, reserved, e.need + 3);
+      if (options.length < e.need) { stuck.push(shortName(e.p.name)); continue; }
+      const r = await retimeDraft(e.p, e.text, e.keep, options, e.need, e.bad);
+      if (!r) { stuck.push(shortName(e.p.name)); continue; }
+      await saveRetimed(e.p, r.body, r.slots, [...new Set(e.bad.map(b => b.why))].join(', '));
+      reserved.push(...r.picked.map(x => ({ ...x, who: shortName(e.p.name) })));
+      changed.push(shortName(e.p.name));
+    }
+  } catch (e) {
+    if (!quiet) toast(e && e.code ? mcpMessage(e, GMAIL) : `Couldn't check the times in your waiting replies: ${(e && e.message) || e}`, { err: true });
+  } finally { fixing = false; }
+  if (changed.length) toast(`New times in ${changed.length} waiting ${changed.length === 1 ? 'reply' : 'replies'} (${changed.join(', ')}), so no two replies offer the same time and none land on a day off.`);
+  if (stuck.length) toast(`Not enough open times in the next 3 weeks for ${stuck.join(', ')}. Widen your call hours to fix it.`, { err: true });
+  refreshAllDetails();
+  return changed;
+}
+function refreshAllDetails() { if (S.drawerId) refreshDetail(S.drawerId); if (S.tab === 'review' && S.reviewId) refreshDetail(S.reviewId); }
+// Once a reply goes out, its times are held, then the others are checked against them.
+async function afterReplySent(p, body) {
+  try {
+    const slots = cachedSlots(p, body) || await readSlots(p, body, nowIso());
+    if (slots.length) await patch(p.id, { offered_slots: slots, offered_at: nowIso() }, `Holding ${slots.map(slotLabel).join('; ')} for them`);
+  } catch (e) { /* the times just aren't held */ }
+  setTimeout(() => fixDocket(), 1500);
+}
+let docketTimer = null, docketRan = false;
+function docketSoon(force) {
+  if (S.readOnly || (!force && docketRan)) return;
+  clearTimeout(docketTimer);
+  docketTimer = setTimeout(() => {
+    if (!S.loaded || !S.metaLoaded || !S.calLoaded || !S.sample) return;
+    docketRan = true; fixDocket({ quiet: !force });
+  }, force ? 600 : 4000);
+}
+function saveSettings(fields, msg) {
+  if (!S.db || S.readOnly) return Promise.resolve();
+  S.meta.settings = { ...(S.meta.settings || {}), ...fields };
+  return S.db.doc('meta/status').update({ settings: S.meta.settings }).then(() => { if (msg) toast(msg); }).catch(err => toast(err.message || String(err), { err: true }));
+}
+
 // Someone wrote back and the student hasn't answered since.
 // Waiting on you: they wrote back and nothing has happened since (no answer, no confirmed call, no thank-you, nothing scheduled).
 const needsAnswer = p => {
@@ -1119,12 +1398,13 @@ ${JSON.stringify(businessFacts(p))}
 The conversation so far, oldest first:
 ${conversationText(p)}
 
-When ${m.first} is free: ${s.free_times || DEFAULTS.free_times}.
-The next weekdays are: ${nextWeekdays(6).join('; ')}.
+Times ${m.first} can offer, New York time. They're already checked against the calendar, days off, calls on the books and times offered to other people, so offer only these, picking two that fit anything they said about their week: ${(() => { const w = openWindows(p.id, otherDraftSlots(p.id), 4); return w.length ? w.map(slotLabel).join('; ') : 'none open in the next three weeks, so ask them what works'; })()}.
+${m.first}'s own note about their time: ${s.free_times || DEFAULTS.free_times}.
+Today is ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric' })}.
 Ways to talk: phone, ${s.video_apps || 'Teams or Google Meet'} (never Zoom; ${m.first} doesn't use it). ${m.first} can't visit in person.
 
 Write ${m.first}'s reply to their latest message:
-- If they're open to talking, thank them, and offer two or three specific times drawn from when they're free on the dates above (e.g. "Tuesday, Nov 4 at 3pm"), say it'd take 15 to 20 minutes, and ask which works and whether they prefer phone or ${s.video_apps || 'Teams or Google Meet'}. If they already suggested a time, just confirm it.
+- If they're open to talking, thank them, and offer the times listed above, written the way a person would (e.g. "Monday, Nov 30 between 2 and 3:30pm"), say it'd take 15 to 20 minutes, and ask which works and whether they prefer phone or ${s.video_apps || 'Teams or Google Meet'}. If they already suggested a time, just confirm it.
 - If they asked questions, answer them plainly and honestly with only what's above. It's free and there's no contract.${inClassArea(p) ? `
 - Only if they asked about Connect.AI, asked how it works, or said they'd like help: add that the easiest next step is a short form at connect-ai.world/apply (about 3 minutes, and they get a free AI-readiness report), and that the call still comes first. Otherwise don't mention the form.` : ''}
 - If they said not now, thank them warmly, say no problem, and leave the door open in one line. Don't push.
@@ -1154,6 +1434,7 @@ async function sendReply(p, body) {
   await patch(p.id, { answered_at: at, reply_draft: null, my_replies: [...(p.my_replies || []), { at, body }].slice(-10), ...trackedPatch(p, trackId, 'reply', at) }, `Answered ${p.contact_name || p.email}`);
   delete S.replyDrafts[p.id];
   loadThread(p, { force: true });
+  afterReplySent(p, body);
   const who = p.contact_name || shortName(p.name);
   logToCrm(p, 'email', `${me().first} answered ${who}:\n\n${body}`, { update: { next_step: `Set up a call with ${who}`, next_step_due: addDays(3) } })
     .then(orgId => (p.crm_org_id ? null : patch(p.id, { crm_org_id: orgId }))).catch(() => {});
@@ -1912,6 +2193,7 @@ async function sendReadyReply(p) {
       my_replies: [...(p.my_replies || []), { at, body: p.reply_draft }].slice(-10) }, `Answered ${p.contact_name || p.email} with times for a call`);
     const who = p.contact_name || shortName(p.name);
     logToCrm(p, 'email', `${me().first} answered ${who} with times for a call:\n\n${p.reply_draft}`, { update: { stage: 'talks', next_step: `Wait for ${who} to pick a time`, next_step_due: addDays(3) } }).catch(() => {});
+    afterReplySent(p, p.reply_draft);
     toast(`Sent to ${p.email}.`);
   } finally {
     delete S.working[p.id]; render();
@@ -2101,22 +2383,63 @@ function threadHtml(p) {
   </div>`;
 }
 
+// The times a reply offers, each marked open or why it isn't.
+function timesHtml(p, draft) {
+  if (!String(draft || '').trim()) return '';
+  const slots = cachedSlots(p, draft);
+  if (!slots && slotFail.has(p.id + ':' + textKey(draft))) return `<div class="rb-sec"><span class="rb-label">Times this reply offers</span><p class="rb-help">Claude couldn't read the times in this one, so they aren't checked.</p></div>`;
+  if (!slots) {
+    if (S.sample && !S.readOnly) queueMicrotask(() => readSlots(p, draft, p.reply_draft_at || nowIso()).then(() => refreshDetail(p.id)).catch(() => {}));
+    return `<div class="rb-sec"><span class="rb-label">Times this reply offers</span><p class="rb-help">${S.sample ? 'Checking the times in it…' : 'Open the desk yourself to check these times.'}</p></div>`;
+  }
+  if (!slots.length) return `<div class="rb-sec"><span class="rb-label">Times this reply offers</span><p class="rb-help">None. It doesn't name a specific time.</p></div>`;
+  const taken = takenTimes(p.id), others = otherDraftSlots(p.id);
+  const rows = slots.map(x => ({ x, why: slotProblem(x, { exceptId: p.id, reserved: others, taken }) }));
+  const bad = rows.filter(r => r.why).length;
+  const busy = S.working[p.id];
+  return `<div class="rb-sec">
+    <div class="rb-row"><span class="rb-label">Times this reply offers</span>${bad && S.sample ? `<button class="btn sm" data-act="fix-times" ${busy ? 'disabled' : ''}>${busy === 'times' ? 'Picking times…' : 'Pick new times'}</button>` : ''}</div>
+    <div class="rb-times">${rows.map(r => `<span class="tslot${r.why ? ' bad' : ''}"><i></i>${esc(slotLabel(r.x))}${r.why ? `<small>${esc(r.why)}</small>` : ''}</span>`).join('')}</div>
+    <p class="rb-help">${bad ? `${bad === 1 ? 'One of these doesn\'t' : `${bad} of these don't`} work. Pick new times and Claude swaps in open ones, keeping the rest of your words.` : 'All open. Once this goes out, these times are held so no other reply offers them.'}</p>
+  </div>`;
+}
+// Call hours, days off and a note for Claude, used for every reply that offers times.
+function availHtml() {
+  const s = settings(), h = callHours(), today = nyToday();
+  const off = dayOffList().filter(d => d >= today);
+  return `<details class="rb-avail"${S.availOpen ? ' open' : ''}><summary>Your availability <span>Weekdays ${esc(fmtHour(h.from))} to ${esc(fmtHour(h.to))}${off.length ? ` · ${off.length} day${off.length === 1 ? '' : 's'} off` : ''}</span></summary>
+    <div class="rb-avail-body">
+      <div class="rb-hours"><label>Calls between <input type="time" id="rFrom" value="${fromMin(h.from)}" step="900"></label><label>and <input type="time" id="rTo" value="${fromMin(h.to)}" step="900"></label><span class="rb-help" style="margin:0">on weekdays, around what's on your calendar</span></div>
+      <div><span class="rb-label">Days off</span>
+        <div class="rb-days">${off.map(d => `<span class="dayoff">${esc(dayName(d))}<button data-dayoff-del="${d}" aria-label="Remove ${esc(dayName(d))}">×</button></span>`).join('') || '<span class="rb-help" style="margin:0">None</span>'}
+          <span class="dayoff-add"><input type="date" id="rDayOff" min="${dayAdd(today, 1)}" aria-label="Add a day off"><button class="btn sm" data-dayoff-add>Add</button></span></div></div>
+      <div class="field"><label for="rFree">Anything else Claude should know about your time</label><input id="rFree" value="${esc(s.free_times || '')}" placeholder="e.g. never Tuesday evenings"></div>
+    </div></details>`;
+}
 function replyBoxHtml(p) {
   const draft = S.replyDrafts[p.id] ?? p.reply_draft ?? '';
   const busy = S.working[p.id];
   const waiting = needsAnswer(p);
-  return `<div class="section reply-box${waiting ? ' waiting' : ''}">
-    <span class="eyebrow">${waiting ? `Your answer · ${esc(p.contact_name || 'they')} wrote ${esc(ago(p.replied_at))}` : `Answered ${esc(ago(p.answered_at))} · write again if you need to`}</span>
-    <div class="field"><label for="rFree">When you're free (used for suggesting call times)</label><input id="rFree" value="${esc(settings().free_times || '')}" placeholder="e.g. Tue/Thu after 2pm, Fridays any time"></div>
-    <div class="field"><label for="rBody">Reply to ${esc(p.email || '')}${settings().cc_email ? ` · cc ${esc(settings().cc_email)}` : ''}</label><textarea id="rBody" spellcheck="true" placeholder="${S.sample ? 'Press “Draft a reply” and Claude writes one from their email, or type your own.' : 'Type your reply.'}">${esc(draft)}</textarea></div>
-    <div class="actions">
-      ${S.confirming && S.confirming.id === p.id && S.confirming.act === 'send-reply'
-        ? `<div class="confirm"><span>Send this reply to ${esc(p.email)} in the same Gmail thread? It also gets logged in the class CRM.</span><button class="btn solid" data-act="send-reply" data-confirmed="1">Yes, send it</button><button class="btn ghost" data-act="cancel-confirm">Cancel</button></div>`
-        : `<button class="btn solid" data-act="send-reply" ${busy ? 'disabled' : ''}>Send reply</button>
-      ${S.sample ? `<button class="btn" data-act="draft-reply" ${busy ? 'disabled' : ''}>${busy === 'reply' ? 'Drafting…' : draft ? 'Redraft with Claude' : 'Draft a reply with Claude'}</button>` : ''}
-      ${waiting ? '<span class="spacer"></span><button class="btn ghost" data-act="mark-answered" title="You answered from Gmail or by phone">I answered another way</button>' : ''}`}
+  const first = String(p.contact_name || '').trim().split(/\s+/)[0] || shortName(p.name);
+  const confirming = S.confirming && S.confirming.id === p.id && S.confirming.act === 'send-reply';
+  return `<section class="section reply-box${waiting ? ' waiting' : ''}">
+    <header class="rb-head"><h3>${waiting ? `Reply to ${esc(first)}` : 'Write again'}</h3><span class="rb-when">${waiting ? `${esc(first)} wrote ${esc(ago(p.replied_at))}` : `You answered ${esc(ago(p.answered_at))}`}</span></header>
+    <div class="rb-sec">
+      <label class="rb-to" for="rBody">To ${esc(p.email || '')}${settings().cc_email ? ` · cc ${esc(settings().cc_email)}` : ''}</label>
+      <textarea id="rBody" spellcheck="true" placeholder="${S.sample ? 'Press “Draft with Claude” and it writes one from their email, or type your own.' : 'Type your reply.'}">${esc(draft)}</textarea>
     </div>
-  </div>`;
+    ${timesHtml(p, draft)}
+    <div class="rb-sec">${availHtml()}</div>
+    <div class="rb-actions">
+      ${confirming
+        ? `<div class="confirm"><span>Send this to ${esc(p.email)} in the same Gmail thread? It also gets logged in the class CRM.</span><button class="btn solid" data-act="send-reply" data-confirmed="1">Yes, send it</button><button class="btn ghost" data-act="cancel-confirm">Cancel</button></div>`
+        : `<button class="btn solid" data-act="send-reply" ${busy ? 'disabled' : ''}>Send reply</button>
+      ${S.sample ? `<button class="btn" data-act="draft-reply" ${busy ? 'disabled' : ''}>${busy === 'reply' ? 'Drafting…' : draft ? 'Redraft with Claude' : 'Draft with Claude'}</button>` : ''}
+      <span class="spacer"></span>
+      ${waiting ? '<button class="btn text" data-act="mark-answered" title="You answered from Gmail or by phone">I answered another way</button>' : ''}
+      <button class="btn text" data-mark="not_interested">Not interested</button>`}
+    </div>
+  </section>`;
 }
 
 function prepHtml(p) {
@@ -2335,7 +2658,7 @@ function detailHtml(id) {
         </div>` : `<div class="section">
           <span class="eyebrow">Emails</span>
           ${threadHtml(p)}
-        </div>${p.status === 'replied' ? replyBoxHtml(p) : ''}<div class="actions" style="margin-top:12px">${actionsHtml(p)}</div>${p.status === 'replied' || p.prep_sheet ? prepHtml(p) : ''}`}
+        </div>${p.status === 'replied' ? replyBoxHtml(p) : `<div class="actions" style="margin-top:12px">${actionsHtml(p)}</div>`}${p.status === 'replied' || p.prep_sheet ? prepHtml(p) : ''}`}
       </div>
       <div class="d-side">
         ${reasons.length ? `<div class="section"><span class="eyebrow">Why this fit score</span>
@@ -2422,11 +2745,21 @@ document.addEventListener('change', e => {
     }
   }
   if (e.target.id === 'rBody') patch(e.target.closest('[data-detail]').dataset.detail, { reply_draft: e.target.value }).catch(() => {});
-  if (e.target.id === 'rFree' && S.db) {
-    S.db.doc('meta/status').update({ settings: { ...(S.meta.settings || {}), free_times: e.target.value.trim() } })
-      .then(() => toast('Saved. New reply drafts will use these times.')).catch(err => toast(err.message || String(err), { err: true }));
+  if (e.target.id === 'rFree' && S.db) saveSettings({ free_times: e.target.value.trim() }, 'Saved. New reply drafts will keep this in mind.');
+  if ((e.target.id === 'rFrom' || e.target.id === 'rTo') && S.db) {
+    const box = e.target.closest('.rb-avail');
+    const a = toMin(box.querySelector('#rFrom').value), b = toMin(box.querySelector('#rTo').value);
+    if (a == null || b == null || b - a < 30) { toast('Call hours need to be at least 30 minutes long.', { err: true }); return; }
+    saveSettings({ call_from: fromMin(a), call_to: fromMin(b) }, `Calls between ${fmtHour(a)} and ${fmtHour(b)} from now on. Checking your waiting replies…`).then(() => { refreshAllDetails(); docketSoon(true); });
   }
 });
+document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('rb-avail')) S.availOpen = e.target.open; }, true);
+// Days off: no reply offers a time on them, and waiting replies that do get new times.
+function setDayOff(day, on) {
+  const days = new Set(dayOffList());
+  if (on) days.add(day); else days.delete(day);
+  saveSettings({ blocked_days: [...days].sort() }, on ? `${dayName(day)} is a day off. Checking your waiting replies…` : `${dayName(day)} is open again.`).then(() => { refreshAllDetails(); if (on) docketSoon(true); });
+}
 setInterval(renderConn, 30000);
 // Any script error shows up on screen once, so a dead button never fails silently.
 window.addEventListener('error', e => { try { toast(`Something broke: ${String(e.message || 'unknown error').slice(0, 160)}. Send Claude a screenshot.`, { err: true }); } catch (_) {} });
@@ -2634,6 +2967,29 @@ async function onAction(root, act, confirmed) {
     try { await navigator.clipboard.writeText(p.prep_sheet || ''); toast('Copied.'); } catch (e) { toast('Couldn\'t copy here. Select the text and copy it instead.', { err: true }); }
     return;
   }
+  if (act === 'fix-times') {
+    if (!S.sample) { toast('Claude isn\'t available in this view.', { err: true }); return; }
+    const text = (rBody && rBody.value) || p.reply_draft || '';
+    S.working[id] = 'times';
+    rerenderDetail(root);
+    try {
+      const slots = await readSlots(p, text, p.reply_draft_at || nowIso());
+      const others = otherDraftSlots(id);
+      const { keep, bad, need } = splitSlots(p, slots, others);
+      const options = openWindows(id, [...others, ...keep], need + 3);
+      if (options.length < need) throw new Error('Not enough open times in the next 3 weeks. Widen your call hours under Your availability.');
+      const r = await retimeDraft(p, text, keep, options, need, bad);
+      if (!r) throw new Error('Claude didn\'t send back a reply. Try again.');
+      await saveRetimed(p, r.body, r.slots, [...new Set(bad.map(b => b.why))].join(', '));
+      toast('New times are in. Read it over, then send.');
+    } catch (e) {
+      toast(e && e.code ? mcpMessage(e, e.code === 'not_granted' ? 'Claude' : GMAIL) : (e.message || String(e)), { err: true });
+    } finally {
+      delete S.working[id];
+      refreshDetail(id);
+    }
+    return;
+  }
   if (act === 'draft-reply' || act === 'prep') {
     if (!S.sample) { toast('Claude isn\'t available in this view.', { err: true }); return; }
     S.working[id] = act === 'prep' ? 'prep' : 'reply';
@@ -2809,6 +3165,13 @@ document.addEventListener('click', async e => {
     for (const p of weak) await patch(p.id, { status: 'skipped' }, 'Skipped (fit under 40, in bulk)').catch(() => {});
     toast(`Skipped ${weak.length} low-fit drafts.`, { undo: async () => { for (const p of weak) await patch(p.id, { status: 'ready' }, 'Un-skipped').catch(() => {}); } });
     return;
+  }
+  const offDel = t.closest('[data-dayoff-del]');
+  if (offDel) { setDayOff(offDel.dataset.dayoffDel, false); return; }
+  if (t.closest('[data-dayoff-add]')) {
+    const inp = t.closest('.rb-avail').querySelector('#rDayOff');
+    if (!inp || !/^\d{4}-\d{2}-\d{2}$/.test(inp.value)) { toast('Pick a date first.', { err: true }); return; }
+    setDayOff(inp.value, true); return;
   }
   const actBtn = t.closest('[data-act]');
   if (actBtn) { onAction(actBtn.closest('[data-detail]'), actBtn.dataset.act, !!actBtn.dataset.confirmed); return; }
@@ -3516,7 +3879,17 @@ paintFab();
 // database, the only part anyone else can read. Someone else who opens this page's
 // link sees just that copy (or a blank screen when you're not presenting); they
 // never get the businesses, emails or CRM.
-const PRES = { on: false, timer: null, mo: null, last: '', lastAt: 0, beat: null, busy: false };
+const PRES = { on: false, timer: null, mo: null, last: '', lastAt: 0, beat: null, busy: false, css: '' };
+// The public presenter page (it works for people who aren't signed in) can't read this
+// page's data, so the same copy also goes into one Gmail draft that only the presenter
+// page, open in your own browser, reads and republishes.
+const RELAY_DRAFT = 'r-4968585193584265199';
+async function presRelay(fields) {
+  if (!S.mcp) return;
+  const body = 'OUTREACH-PRESENT\n' + JSON.stringify(fields) + '\nEND';
+  try { await S.mcp.callTool(GMAIL, 'update_draft', { draftId: RELAY_DRAFT, body }); }
+  catch (e) { if (!PRES.relayWarned) { PRES.relayWarned = true; toast('The class screen link didn\'t update: ' + mcpMessage(e, GMAIL), { err: true }); } }
+}
 const PRES_MASK = /(data:[^"'\s)]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})|((?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b)/gi;
 const presMask = html => html.replace(PRES_MASK, (m, d, em) => d ? d : em ? '[email hidden]' : '[phone hidden]');
 async function gzip64(str) {
@@ -3559,7 +3932,8 @@ async function presSend(force) {
     if (z.length > 230000) { snap = presSnapshot(false); z = await gzip64(snap.body); }
     if (z.length > 230000) { toast('This view is too big to present. Close a few things and try again.', { err: true }); return; }
     PRES.last = key; PRES.lastAt = Date.now();
-    await S.db.doc('present/live').set({ on: true, at: nowIso(), k: key, z, bodyClass: snap.bodyClass, theme: snap.theme, y: snap.y, dy: snap.dy, w: snap.w });
+    const live = { on: true, at: nowIso(), k: key, z, bodyClass: snap.bodyClass, theme: snap.theme, y: snap.y, dy: snap.dy, w: snap.w };
+    await Promise.all([S.db.doc('present/live').set(live), presRelay({ ...live, css: PRES.css })]);
   } catch (e) { toast('Couldn\'t update the class screen: ' + (e.message || e), { err: true }); }
   finally { PRES.busy = false; }
 }
@@ -3570,18 +3944,20 @@ async function presStart() {
   PRES.on = true; PRES.last = ''; presPaint();
   try {
     const css = [...document.querySelectorAll('style')].map(x => x.textContent).join('\n');
-    await S.db.doc('present/css').set({ z: await gzip64(css), at: nowIso() });
+    PRES.css = await gzip64(css); PRES.relayWarned = false;
+    await S.db.doc('present/css').set({ z: PRES.css, at: nowIso() });
   } catch (e) { PRES.on = false; presPaint(); toast('Couldn\'t start presenting: ' + (e.message || e), { err: true }); return; }
   if (!PRES.mo) PRES.mo = new MutationObserver(presSoon);
   PRES.mo.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
   // A heartbeat, so the class screen goes blank by itself if this tab closes.
   PRES.beat = setInterval(() => presSend(true), 30000);
   await presSend(true);
-  toast('Presenting. On the class computer, open this page\'s link. It shows only what\'s on your screen, with emails and phone numbers hidden.');
+  toast('Presenting. Keep the presenter page open in another tab; the class screen follows this page, with emails and phone numbers hidden.');
 }
 async function presStop(quiet) {
   PRES.on = false; clearTimeout(PRES.timer); PRES.timer = null; clearInterval(PRES.beat); if (PRES.mo) PRES.mo.disconnect(); presPaint();
-  try { await S.db.doc('present/live').set({ on: false, at: nowIso() }); } catch (e) {}
+  const off = { on: false, at: nowIso() };
+  await Promise.all([S.db.doc('present/live').set(off).catch(() => {}), presRelay(off)]);
   if (!quiet) toast('Stopped. The class screen is blank again.');
 }
 document.addEventListener('scroll', presSoon, { passive: true, capture: true });
@@ -3653,7 +4029,7 @@ render();
         if (!S.readOnly) sesFromHash();
       }
       if (S.readOnly) return;
-      watchReplies(); syncLeads(); autoSend(); migrateDrafts(); stripLinkedIn();
+      watchReplies(); syncLeads(); autoSend(); migrateDrafts(); stripLinkedIn(); docketSoon();
       // Keep a copy of every conversation where someone wrote back, for the people he shares the desk with.
       if (!backfilled) { backfilled = true; S.prospects.filter(p => ['replied', 'not_interested'].includes(p.status)).forEach(p => loadThread(p)); }
     }, () => { S.dbState = 'bad'; S.loaded = true; render(); });
@@ -3662,7 +4038,9 @@ render();
       S._sesPast = S.calls;
       render(); paintFab();
     }, () => { S.calls = []; });
-    db.doc('meta/status').onSnapshot(snap => { S.meta = snap.exists ? (snap.data() || {}) : {}; S.metaLoaded = true; render(); if (!S.readOnly) migrateDrafts(); }, () => {});
+    db.doc('meta/status').onSnapshot(snap => { S.meta = snap.exists ? (snap.data() || {}) : {}; S.metaLoaded = true; render(); if (!S.readOnly) { migrateDrafts(); docketSoon(); } }, () => {});
+    // Busy times from the student's Outlook calendar, refreshed each weekday morning.
+    if (!S.readOnly) db.doc('meta/calendar').onSnapshot(snap => { S.cal = snap.exists ? (snap.data() || null) : null; S.calLoaded = true; refreshAllDetails(); docketSoon(); }, () => { S.calLoaded = true; docketSoon(); });
     if (S.readOnly) {
       db.doc('meta/crm_view').onSnapshot(snap => {
         const d = snap.exists ? (snap.data() || {}) : {};
