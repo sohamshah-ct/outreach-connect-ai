@@ -977,3 +977,25 @@ test('send step swaps old Zoom lines for the apps the student uses', () => {
   assert.match(b.body, /Phone, Teams or Google Meet, whatever works\./);
   assert.match(b.body, /Happy to talk by phone, Teams or Google Meet\./);
 });
+
+test('reply times skip days off, keep to call hours, and never reuse a time held for someone else', () => {
+  const { meetingReply } = require('../scripts/meeting-reply');
+  const { heldBusy } = require('../lib/outreach/calendar');
+  const now = new Date('2026-11-20T15:00:00Z'); // Fri Nov 20, 10am New York
+  const settings = { ...SOHAM, booking_url: '', call_from: '14:00', call_to: '18:00', blocked_days: ['2026-11-24'] };
+  const others = [
+    { id: 'cori', status: 'replied', offered_at: '2026-11-19T20:00:00Z', offered_slots: [{ start: '2026-11-23T14:00', end: '2026-11-23T18:00' }] },
+    { id: 'shelby', status: 'replied', call_at: '2026-11-25T14:00', call_confirmed_at: '2026-11-19T20:02:25Z', invite: { start: '2026-11-25T14:00', mins: 30 } },
+    { id: 'drafty', status: 'replied', reply_draft: 'Hi', draft_slots: { slots: [{ start: '2026-11-26T14:00', end: '2026-11-26T15:00' }] } },
+  ];
+  assert.equal(heldBusy(others, { now }).length, 3);
+  const r = meetingReply({ id: 'x', name: 'Test Shop LLC', body: 'Hi Sam,' }, { busy: [], fetched_at: now.toISOString() }, { now, settings, others });
+  const days = r.draft_slots.slots.map(x => x.start.slice(0, 10));
+  assert.ok(!days.includes('2026-11-23'), 'Monday is all held for Cori');
+  assert.ok(!days.includes('2026-11-24'), 'Tuesday is a day off');
+  for (const x of r.draft_slots.slots) { const h = +x.start.slice(11, 13); assert.ok(h >= 14 && h < 18, 'inside call hours: ' + x.start); }
+  assert.ok(!r.draft_slots.slots.some(x => x.start === '2026-11-25T14:00'), 'not on top of a confirmed call');
+  assert.ok(!r.draft_slots.slots.some(x => x.start.startsWith('2026-11-26T14')), 'not a time another draft holds');
+  assert.equal(r.slot_text.length, r.draft_slots.slots.length);
+  assert.ok(r.draft_slots.key);
+});

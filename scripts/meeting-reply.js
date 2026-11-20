@@ -3,11 +3,14 @@
 // whatever's easiest. No pitch: Connect.AI comes up on the call itself. The reply check saves it as a Gmail draft in their thread for
 // you to send. It's signed with the first name from the settings.
 //
-//   node scripts/meeting-reply.js <prospect JSON file> <calendar JSON file> [settings JSON file]
-//     → { body, slots: [iso...], slot_text: [...] } or { skip: reason }
+//   node scripts/meeting-reply.js <prospect JSON file> <calendar JSON file> [settings JSON file] [prospects folder]
+//     → { body, slots: [iso...], slot_text: [...], draft_slots } or { skip: reason }
+// Save draft_slots on the prospect with the draft, so the desk knows which times it holds.
+// Days off (settings.blocked_days), call hours (call_from/call_to) and times held for
+// other businesses (see heldBusy) are never offered.
 
 const fs = require('fs');
-const { callOptions, slotText } = require('../lib/outreach/calendar');
+const { callOptions, slotText, heldBusy, dateToNyLocal } = require('../lib/outreach/calendar');
 const { shortName } = require('../lib/outreach/crmnotes');
 const { profileOf, loadSettings } = require('../lib/outreach/settings');
 
@@ -17,7 +20,11 @@ function firstName(p) {
   return greet.replace(/^Dr\.\s+/, 'Dr. ');
 }
 
-function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
+// Same hash the desk page uses to tell which wording draft_slots belongs to.
+const textKey = t => { let h = 0; for (const c of String(t || '').trim()) h = (h * 31 + c.charCodeAt(0)) | 0; return String(h); };
+
+// others: the desk's other prospects, so times held for them aren't offered again.
+function meetingReply(p, cal, { now = new Date(), settings = {}, others = [] } = {}) {
   const ageH = cal && cal.fetched_at ? (now - new Date(cal.fetched_at)) / 3600000 : Infinity;
   const booking = String(profileOf(settings).booking_url || '').trim();
   if (/^https?:\/\/\S+$/.test(booking) && !booking.includes('...')) {
@@ -34,7 +41,9 @@ function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
   }
   if (!cal || !Array.isArray(cal.busy)) return { skip: "Your calendar hasn't been read yet" };
   if (ageH > 72) return { skip: "Your calendar is more than 3 days old; the 7:23am run may not be reading it" };
-  const slots = callOptions(cal.busy, { now });
+  const s = settings.settings || settings;
+  const busy = [...cal.busy, ...heldBusy(others, { exceptId: p.id, now })];
+  const slots = callOptions(busy, { now, skipDays: Array.isArray(s.blocked_days) ? s.blocked_days : [], callFrom: s.call_from, callTo: s.call_to }).slice(0, 3);
   if (slots.length < 2) return { skip: 'Not enough open times in the next two weeks' };
   const prof = profileOf(settings);
   const me = prof.first_name;
@@ -48,11 +57,20 @@ function meetingReply(p, cal, { now = new Date(), settings = {} } = {}) {
     `Really looking forward to hearing how ${biz} got started.`,
     me ? `Thanks,\n${me}` : 'Thanks,',
   ].join('\n\n');
-  return { body, slots: slots.map(d => d.toISOString()), slot_text: texts };
+  const draft_slots = { key: textKey(body), slots: slots.map(d => ({ start: dateToNyLocal(d), end: dateToNyLocal(new Date(d.getTime() + 30 * 60000)) })), read_at: now.toISOString() };
+  return { body, slots: slots.map(d => d.toISOString()), slot_text: texts, draft_slots };
 }
 
 if (require.main === module) {
   const read = f => { const j = JSON.parse(fs.readFileSync(f, 'utf8')); return j.data || j; };
-  process.stdout.write(JSON.stringify(meetingReply(read(process.argv[2]), read(process.argv[3]), { settings: loadSettings(process.argv[4]) })));
+  // Optional 4th: a folder of the desk's prospect JSON files (or one JSON array), for times held for others.
+  const othersArg = process.argv[5];
+  let others = [];
+  if (othersArg && fs.existsSync(othersArg)) {
+    others = fs.statSync(othersArg).isDirectory()
+      ? fs.readdirSync(othersArg).filter(f => f.endsWith('.json') && !f.startsWith('.')).map(f => { const j = read(require('path').join(othersArg, f)); j.id = j.id || f.slice(0, -5); return j; })
+      : [].concat(read(othersArg));
+  }
+  process.stdout.write(JSON.stringify(meetingReply(read(process.argv[2]), read(process.argv[3]), { settings: loadSettings(process.argv[4]), others })));
 }
 module.exports = { meetingReply };
