@@ -397,6 +397,19 @@ table.list a{color:var(--info); text-decoration:none;}
   .ib-group .eyebrow{min-width:0; width:100%;}
 }
 /* Reply panel: plain labels, the times it offers as chips, one row of buttons. */
+.pp{position:fixed; right:16px; bottom:16px; z-index:60; width:min(360px, calc(100vw - 32px)); background:var(--paper); border:1px solid var(--line-strong); border-radius:14px; box-shadow:var(--shadow); padding:14px 16px; font-size:13.5px; color:var(--ink-2);}
+.pp p{margin:6px 0 10px; line-height:1.45;}
+.pp-top{display:flex; align-items:center; gap:8px;}
+.pp-top b{flex:1; color:var(--ink); font-size:14.5px;}
+.pp-dot{width:10px; height:10px; border-radius:50%; background:var(--warn); flex-shrink:0;}
+.pp.pp-on .pp-dot{background:var(--ok); box-shadow:0 0 0 4px var(--ok-soft); animation:ppPulse 1.6s infinite;}
+.pp.pp-err .pp-dot{background:var(--crimson);}
+.pp.pp-on{border-color:var(--ok);}
+@keyframes ppPulse{50%{box-shadow:0 0 0 8px transparent;}}
+.pp-x{border:1px solid var(--line-strong); background:none; border-radius:999px; padding:3px 10px; font-size:12px; color:var(--ink-2); cursor:pointer;}
+.pp-link{display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); font-size:12px;}
+.pp-link span{color:var(--muted); white-space:nowrap;}
+.pp-link code{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--mono); font-size:11px; color:var(--ink);}
 .reply-box{border:1px solid var(--line); border-radius:16px; background:var(--paper); overflow:hidden;}
 .reply-box.waiting{box-shadow:inset 3px 0 0 var(--crimson);}
 .rb-head{display:flex; justify-content:space-between; align-items:baseline; gap:6px 14px; flex-wrap:wrap; padding:16px 20px 0;}
@@ -679,7 +692,7 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
             <span class="cchip" id="cCrm"><i></i>Class CRM</span>
             <span class="cchip" id="cGmail"><i></i>Gmail</span>
           </div>
-          <button class="btn sm" id="presentBtn" hidden title="Show what you're looking at on another computer that has this page's link open">Present to class</button>
+          <button class="btn sm" id="presentBtn" hidden title="Put the big picture of your outreach on the class screen">Present to class</button>
         </div>
       </aside>
     </section>
@@ -3875,23 +3888,20 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && SES && SES
 paintFab();
 
 // ---------- present to class ----------
-// Presenting writes a copy of what this page shows to present/live in the page's
-// database, the only part anyone else can read. Someone else who opens this page's
-// link sees just that copy (or a blank screen when you're not presenting); they
-// never get the businesses, emails or CRM.
-const PRES = { on: false, timer: null, mo: null, last: '', lastAt: 0, beat: null, busy: false, css: '' };
-// The public presenter page (it works for people who aren't signed in) can't read this
-// page's data, so the same copy also goes into one Gmail draft that only the presenter
-// page, open in your own browser, reads and republishes.
+// "Present to class" puts a big-picture show of the whole outreach effort on the
+// public Outreach Live page (PRESENTER_URL), which works on a computer that isn't
+// signed in. This page can't publish that page itself, so it hands the numbers over
+// through one Gmail draft (RELAY_DRAFT); Outreach Live, open in a tab on this
+// laptop, reads it, publishes the show, and checks in through a second draft
+// (ACK_DRAFT) so this page can say whether the big screen is really showing it.
+// The show holds counts, map dots, towns, industries and a few short quotes with
+// no names, emails or phone numbers.
+const PRESENTER_URL = 'https://claude.ai/artifact/BuCsYLSEBwc32uH8hNqRKD';
 const RELAY_DRAFT = 'r-4968585193584265199';
-async function presRelay(fields) {
-  if (!S.mcp) return;
-  const body = 'OUTREACH-PRESENT\n' + JSON.stringify(fields) + '\nEND';
-  try { await S.mcp.callTool(GMAIL, 'update_draft', { draftId: RELAY_DRAFT, body }); }
-  catch (e) { if (!PRES.relayWarned) { PRES.relayWarned = true; toast('The class screen link didn\'t update: ' + mcpMessage(e, GMAIL), { err: true }); } }
-}
+const ACK_DRAFT = 'r4707099709462745806';
+const PRES = { on: false, beat: null, poll: null, ack: null, key: '', busy: false };
 const PRES_MASK = /(data:[^"'\s)]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})|((?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b)/gi;
-const presMask = html => html.replace(PRES_MASK, (m, d, em) => d ? d : em ? '[email hidden]' : '[phone hidden]');
+const presMask = html => html.replace(PRES_MASK, (m, d, em) => d ? d : em ? '[email]' : '[phone]');
 async function gzip64(str) {
   const buf = await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
   const u = new Uint8Array(buf); let bin = '';
@@ -3902,68 +3912,100 @@ async function gunzip64(b64) {
   const u = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   return await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
-function presSnapshot(withPics) {
-  const root = document.body.cloneNode(true);
-  // Canvases (the map) don't copy; swap each for a small picture of it.
-  const liveC = document.body.querySelectorAll('canvas'), cloneC = root.querySelectorAll('canvas');
-  cloneC.forEach((c, i) => {
-    const L = liveC[i]; const ph = document.createElement(withPics ? 'img' : 'div');
-    ph.className = c.className; ph.id = c.id; ph.style.cssText = c.style.cssText;
-    ph.style.width = L.clientWidth + 'px'; ph.style.height = L.clientHeight + 'px'; ph.style.maxWidth = '100%';
-    if (withPics) { try { const sc = Math.min(1, 900 / (L.width || 1)); const t = document.createElement('canvas'); t.width = Math.round(L.width * sc); t.height = Math.round(L.height * sc); t.getContext('2d').drawImage(L, 0, 0, t.width, t.height); ph.src = t.toDataURL('image/jpeg', 0.7); } catch (e) {} }
-    c.replaceWith(ph);
-  });
-  const liveI = document.body.querySelectorAll('input,textarea,select'), cloneI = root.querySelectorAll('input,textarea,select');
-  cloneI.forEach((el, i) => { const L = liveI[i]; if (!L) return; if (el.tagName === 'TEXTAREA') el.textContent = L.value; else if (el.tagName === 'SELECT') { [...el.options].forEach((o, k) => { if (k === L.selectedIndex) o.setAttribute('selected', ''); else o.removeAttribute('selected'); }); } else if (L.type === 'checkbox' || L.type === 'radio') { if (L.checked) el.setAttribute('checked', ''); else el.removeAttribute('checked'); } else el.setAttribute('value', L.value); });
-  root.querySelectorAll('script,#presentBtn,#sessFab,#toasts,iframe,audio,video').forEach(el => el.remove());
-  root.querySelectorAll('img').forEach(img => { const src = img.getAttribute('src') || ''; if (!/^data:image\/(jpeg|png)/.test(src) || src.length > 200000) img.removeAttribute('src'); });
-  return { body: presMask(root.innerHTML), bodyClass: document.body.className, theme: document.documentElement.getAttribute('data-theme') || '', y: Math.round(window.scrollY), dy: Math.round(($('#drawer') && $('#drawer').scrollTop) || 0), w: window.innerWidth };
+async function presRelay(fields) {
+  if (!S.mcp) throw new Error('Gmail isn\'t available in this view.');
+  await S.mcp.callTool(GMAIL, 'update_draft', { draftId: RELAY_DRAFT, body: 'OUTREACH-PRESENT\n' + JSON.stringify(fields) + '\nEND' });
 }
-async function presSend(force) {
-  if (!PRES.on || !S.db || PRES.busy) return;
+// Everything the show needs, worked out from the businesses on this desk.
+function showData() {
+  const ps = S.prospects;
+  const nyDayOf = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const emailed = ps.filter(p => p.sent_at);
+  const wrote = ps.filter(p => p.replied_at || ['replied', 'not_interested'].includes(p.status));
+  const isCall = p => p.call_at && (p.call_confirmed_at || p.called_at || p.last_session_at || (p.invite && !p.invite.canceled_at));
+  const calls = ps.filter(isCall);
+  const followed = ps.filter(p => p.followup_at || p.status === 'followed_up');
+  const withEmail = ps.filter(p => p.email);
+  const count = (arr, f) => { const m = new Map(); for (const p of arr) { const k = f(p); if (k) m.set(k, (m.get(k) || 0) + 1); } return [...m].sort((a, b) => b[1] - a[1]); };
+  const days = count(emailed, p => nyDayOf(p.sent_at)).sort((a, b) => a[0].localeCompare(b[0]));
+  const dots = [];
+  for (const p of ps) {
+    if (p.status === 'skipped') continue;
+    const m = mapPlace(p); if (!m) continue;
+    const s = isCall(p) ? 4 : (p.replied_at || p.status === 'replied') ? 3 : p.sent_at ? 2 : 1;
+    dots.push([Math.round(m.x * 10) / 10, Math.round(m.y * 10) / 10, s]);
+  }
+  const cat = p => { const c = String(p.category || '').trim(); return c ? c[0].toUpperCase() + c.slice(1) : ''; };
+  const quotes = wrote.filter(p => p.status === 'replied' && p.reply_snippet && !p.auto_reply_at && !/out of (the )?office|automatic reply|auto-?reply/i.test(p.reply_snippet))
+    .sort((a, b) => String(b.replied_at).localeCompare(String(a.replied_at)))
+    .map(p => {
+      let t = saidLine(p).replace(/\s*\[?(email|phone)( hidden)?\]?/gi, '');
+      t = presMask(t).replace(/\[(email|phone)\]/g, '').replace(/\s{2,}/g, ' ').trim();
+      for (const n of String(p.contact_name || '').split(/\s+/).filter(x => x.length > 2)) t = t.replace(new RegExp('\\b' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g'), '');
+      t = t.replace(/\s{2,}/g, ' ').trim();
+      return t.length > 24 ? { t: t.length > 110 ? t.slice(0, 107).replace(/\s+\S*$/, '') + '…' : t, who: `${(cat(p) || 'A small business').toLowerCase().replace(/^./, c => c.toUpperCase())} in ${p.town || stateOf(p)}` } : null;
+    }).filter(Boolean).slice(0, 10);
+  const arm = a => { const g = ps.filter(p => p.ab_arm === a); return { n: g.length, sent: g.filter(p => p.sent_at).length, wrote: g.filter(p => p.replied_at || p.status === 'replied').length }; };
+  const states = new Set(emailed.map(stateOf));
+  return {
+    who: me().name || '', school: settings().school_short || 'UConn',
+    total: ps.length, withEmail: withEmail.length, emailed: emailed.length, followed: followed.length,
+    wrote: wrote.length, calls: calls.length, owners: ps.filter(p => p.contact_name).length,
+    sites: ps.filter(p => p.website_verified || p.website).length, states: states.size,
+    towns: count(emailed, p => p.town).slice(0, 14), townCount: new Set(emailed.map(p => p.town).filter(Boolean)).size, cats: count(emailed, cat).slice(0, 8),
+    days, dots, quotes, ab: { A: arm('A'), B: arm('B') },
+    first: emailed.map(p => p.sent_at).sort()[0] || '', at: nowIso(),
+  };
+}
+function presKey(show) { const t = JSON.stringify({ ...show, at: '' }); let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return String(h); }
+async function presPush() {
+  if (!PRES.on || PRES.busy) return;
   PRES.busy = true;
-  try {
-    let snap = presSnapshot(true);
-    const plain = snap.body.replace(/data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g, '');
-    let h = 0; for (let i = 0; i < plain.length; i++) h = (h * 31 + plain.charCodeAt(i)) | 0;
-    const key = h + ':' + snap.y + ':' + snap.dy + ':' + snap.w + ':' + snap.theme;
-    if (!force && key === PRES.last) return;
-    let z = await gzip64(snap.body);
-    if (z.length > 230000) { snap = presSnapshot(false); z = await gzip64(snap.body); }
-    if (z.length > 230000) { toast('This view is too big to present. Close a few things and try again.', { err: true }); return; }
-    PRES.last = key; PRES.lastAt = Date.now();
-    const live = { on: true, at: nowIso(), k: key, z, bodyClass: snap.bodyClass, theme: snap.theme, y: snap.y, dy: snap.dy, w: snap.w };
-    await Promise.all([S.db.doc('present/live').set(live), presRelay({ ...live, css: PRES.css })]);
-  } catch (e) { toast('Couldn\'t update the class screen: ' + (e.message || e), { err: true }); }
-  finally { PRES.busy = false; }
+  try { const show = showData(); PRES.key = presKey(show); await presRelay({ on: true, mode: 'show', at: nowIso(), k: PRES.key, show }); PRES.err = ''; }
+  catch (e) { PRES.err = e && e.code ? mcpMessage(e, GMAIL) : (e.message || String(e)); }
+  finally { PRES.busy = false; presPanel(); }
 }
-function presSoon() { if (!PRES.on || PRES.timer) return; const wait = Math.max(600, PRES.lastAt + 2500 - Date.now()); PRES.timer = setTimeout(() => { PRES.timer = null; presSend(false); }, wait); }
-function presPaint() { const b = $('#presentBtn'); if (!b) return; b.textContent = PRES.on ? 'Stop presenting' : 'Present to class'; b.classList.toggle('crimson', PRES.on); }
-async function presStart() {
-  if (!S.db) { toast('The page\'s data isn\'t connected yet.', { err: true }); return; }
-  PRES.on = true; PRES.last = ''; presPaint();
+async function presCheck() {
+  if (!PRES.on || !S.mcp) return;
   try {
-    const css = [...document.querySelectorAll('style')].map(x => x.textContent).join('\n');
-    PRES.css = await gzip64(css); PRES.relayWarned = false;
-    await S.db.doc('present/css').set({ z: PRES.css, at: nowIso() });
-  } catch (e) { PRES.on = false; presPaint(); toast('Couldn\'t start presenting: ' + (e.message || e), { err: true }); return; }
-  if (!PRES.mo) PRES.mo = new MutationObserver(presSoon);
-  PRES.mo.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
-  // A heartbeat, so the class screen goes blank by itself if this tab closes.
-  PRES.beat = setInterval(() => presSend(true), 30000);
-  await presSend(true);
-  toast('Presenting. Keep the presenter page open in another tab; the class screen follows this page, with emails and phone numbers hidden.');
+    const r = await S.mcp.callTool(GMAIL, 'get_draft', { draftId: ACK_DRAFT, messageFormat: 'PLAIN_TEXT' });
+    const m = /OUTREACH-LIVE-ACK\s*([\s\S]*?)\s*END\s*$/.exec(String(((r && r.payload) || {}).plaintextBody || '').trim());
+    PRES.ack = m ? JSON.parse(m[1]) : null;
+  } catch (e) { /* keep the last answer */ }
+  presPanel();
+}
+function presPaint() { const b = $('#presentBtn'); if (!b) return; b.textContent = PRES.on ? 'Stop presenting' : 'Present to class'; b.classList.toggle('crimson', PRES.on); }
+function presPanel() {
+  let el = $('#presPanel');
+  if (!PRES.on) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'presPanel'; document.body.appendChild(el); }
+  const a = PRES.ack, fresh = a && a.at && Date.now() - Date.parse(a.at) < 20000;
+  const live = fresh && a.k === PRES.key && a.published;
+  const state = PRES.err ? 'err' : live ? 'live' : fresh ? 'sync' : 'wait';
+  el.className = 'pp pp-' + (state === 'live' ? 'on' : state);
+  el.innerHTML = `<div class="pp-top"><span class="pp-dot"></span><b>${state === 'live' ? 'Live on the big screen' : state === 'sync' ? 'Updating the big screen…' : state === 'err' ? 'Couldn\'t reach Gmail' : 'Waiting for Outreach Live'}</b><button class="pp-x" data-pres-stop aria-label="Stop presenting">Stop</button></div>
+    ${state === 'err' ? `<p>${esc(PRES.err)}</p>` : state === 'wait' ? `<p>Open <b>Outreach Live</b> in another tab on this laptop. It does the actual publishing, then this turns green.</p><a class="btn sm solid" href="${PRESENTER_URL}" target="_blank" rel="noopener">Open Outreach Live</a>` : '<p>The class screen shows the big picture of your outreach. Numbers update by themselves while you keep working here.</p>'}
+    <div class="pp-link"><span>Big screen link</span><code>${esc(PRESENTER_URL.replace('https://', ''))}</code><button class="btn sm" data-pres-copy>Copy</button></div>`;
+}
+async function presStart() {
+  if (!S.mcp) { toast('Gmail isn\'t connected in this view, so the big screen can\'t be reached.', { err: true }); return; }
+  PRES.on = true; PRES.ack = null; PRES.err = ''; presPaint(); presPanel();
+  await presPush();
+  PRES.beat = setInterval(presPush, 20000);
+  PRES.poll = setInterval(presCheck, 4000);
+  presCheck();
 }
 async function presStop(quiet) {
-  PRES.on = false; clearTimeout(PRES.timer); PRES.timer = null; clearInterval(PRES.beat); if (PRES.mo) PRES.mo.disconnect(); presPaint();
-  const off = { on: false, at: nowIso() };
-  await Promise.all([S.db.doc('present/live').set(off).catch(() => {}), presRelay(off)]);
-  if (!quiet) toast('Stopped. The class screen is blank again.');
+  PRES.on = false; clearInterval(PRES.beat); clearInterval(PRES.poll); presPaint(); presPanel();
+  try { await presRelay({ on: false, at: nowIso() }); } catch (e) {}
+  if (!quiet) toast('Stopped. The big screen goes blank in a few seconds.');
 }
-document.addEventListener('scroll', presSoon, { passive: true, capture: true });
-window.addEventListener('resize', presSoon);
-document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#presentBtn')) { if (PRES.on) presStop(); else presStart(); } });
-window.addEventListener('pagehide', () => { if (PRES.on) presStop(true); });
+document.addEventListener('click', e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  if (t.closest('#presentBtn') || t.closest('[data-pres-stop]')) { if (PRES.on) presStop(); else presStart(); }
+  if (t.closest('[data-pres-copy]')) { navigator.clipboard.writeText(PRESENTER_URL).then(() => toast('Link copied. Send it to the class computer (Teams works) and open it there.'), () => toast(PRESENTER_URL)); }
+});
+window.addEventListener('pagehide', () => { if (PRES.on) presRelay({ on: false, at: nowIso() }).catch(() => {}); });
 
 // What everyone except the owner sees: the presented copy, or a blank screen.
 function presViewer(db) {
