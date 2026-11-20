@@ -638,7 +638,7 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
             <span class="cchip" id="cCrm"><i></i>Class CRM</span>
             <span class="cchip" id="cGmail"><i></i>Gmail</span>
           </div>
-          <button class="btn sm" id="presentBtn" hidden title="Show this page on the class screen through your presenter link">Present to class</button>
+          <button class="btn sm" id="presentBtn" hidden title="Show what you're looking at on another computer that has this page's link open">Present to class</button>
         </div>
       </aside>
     </section>
@@ -3512,80 +3512,112 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && SES && SES
 paintFab();
 
 // ---------- present to class ----------
-// Opens the presenter page (a separate artifact, shared by link) and sends it a
-// copy of what this page shows whenever it changes. The presenter publishes the
-// copy so the class screen shows it, and goes blank when you stop. Nothing here
-// is shared: only the copy you're presenting leaves this page.
-const PRESENTER_URL = 'https://claude.ai/artifact/BuCsYLSEBwc32uH8hNqRKD';
-const PRES = { win: null, on: false, timer: null, mo: null, logo: null, last: '' };
-function presPost(msg) {
-  const seen = new Set();
-  const walk = (w, d) => {
-    if (!w || d > 5 || seen.has(w)) return; seen.add(w);
-    try { w.postMessage(msg, '*'); } catch (e) {}
-    let n = 0; try { n = w.frames.length; } catch (e) {}
-    for (let i = 0; i < n; i++) { let f = null; try { f = w.frames[i]; } catch (e) {} walk(f, d + 1); }
-  };
-  walk(PRES.win, 0);
+// Presenting writes a copy of what this page shows to present/live in the page's
+// database, the only part anyone else can read. Someone else who opens this page's
+// link sees just that copy (or a blank screen when you're not presenting); they
+// never get the businesses, emails or CRM.
+const PRES = { on: false, timer: null, mo: null, last: '', lastAt: 0, beat: null, busy: false };
+const PRES_MASK = /(data:[^"'\s)]+)|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})|((?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b)/gi;
+const presMask = html => html.replace(PRES_MASK, (m, d, em) => d ? d : em ? '[email hidden]' : '[phone hidden]');
+async function gzip64(str) {
+  const buf = await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  const u = new Uint8Array(buf); let bin = '';
+  for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
-function presLogo() {
-  if (PRES.logo !== null) return PRES.logo;
-  PRES.logo = '';
-  try { const img = document.querySelector('.logo-tile img'); if (img && img.complete && img.naturalWidth) { const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); PRES.logo = c.toDataURL('image/png'); } } catch (e) { PRES.logo = ''; }
-  return PRES.logo;
+async function gunzip64(b64) {
+  const u = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  return await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
-function presSnapshot() {
+function presSnapshot(withPics) {
   const root = document.body.cloneNode(true);
-  // Canvases (the map) don't copy; swap each for a picture of it.
+  // Canvases (the map) don't copy; swap each for a small picture of it.
   const liveC = document.body.querySelectorAll('canvas'), cloneC = root.querySelectorAll('canvas');
-  cloneC.forEach((c, i) => { try { const img = document.createElement('img'); img.src = liveC[i].toDataURL('image/png'); img.className = c.className; img.id = c.id; img.style.cssText = c.style.cssText; img.style.width = liveC[i].clientWidth + 'px'; img.style.height = liveC[i].clientHeight + 'px'; img.style.maxWidth = '100%'; c.replaceWith(img); } catch (e) {} });
-  // Keep what's typed in boxes and picked in menus.
+  cloneC.forEach((c, i) => {
+    const L = liveC[i]; const ph = document.createElement(withPics ? 'img' : 'div');
+    ph.className = c.className; ph.id = c.id; ph.style.cssText = c.style.cssText;
+    ph.style.width = L.clientWidth + 'px'; ph.style.height = L.clientHeight + 'px'; ph.style.maxWidth = '100%';
+    if (withPics) { try { const sc = Math.min(1, 900 / (L.width || 1)); const t = document.createElement('canvas'); t.width = Math.round(L.width * sc); t.height = Math.round(L.height * sc); t.getContext('2d').drawImage(L, 0, 0, t.width, t.height); ph.src = t.toDataURL('image/jpeg', 0.7); } catch (e) {} }
+    c.replaceWith(ph);
+  });
   const liveI = document.body.querySelectorAll('input,textarea,select'), cloneI = root.querySelectorAll('input,textarea,select');
   cloneI.forEach((el, i) => { const L = liveI[i]; if (!L) return; if (el.tagName === 'TEXTAREA') el.textContent = L.value; else if (el.tagName === 'SELECT') { [...el.options].forEach((o, k) => { if (k === L.selectedIndex) o.setAttribute('selected', ''); else o.removeAttribute('selected'); }); } else if (L.type === 'checkbox' || L.type === 'radio') { if (L.checked) el.setAttribute('checked', ''); else el.removeAttribute('checked'); } else el.setAttribute('value', L.value); });
-  root.querySelectorAll('script,#presentBtn,#sessFab,iframe,audio,video').forEach(el => el.remove());
-  const logo = presLogo();
-  root.querySelectorAll('img').forEach(img => { const src = img.getAttribute('src') || ''; if (/connectai\.png$/.test(src)) { if (logo) img.setAttribute('src', logo); else img.remove(); } else if (!/^data:|^https?:/.test(src)) img.remove(); });
-  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
-  return { css, body: root.innerHTML, bodyClass: document.body.className, theme: document.documentElement.getAttribute('data-theme') || '', y: Math.round(window.scrollY), dy: Math.round(($('#drawerBody') && $('#drawer').scrollTop) || 0), w: window.innerWidth };
+  root.querySelectorAll('script,#presentBtn,#sessFab,#toasts,iframe,audio,video').forEach(el => el.remove());
+  root.querySelectorAll('img').forEach(img => { const src = img.getAttribute('src') || ''; if (!/^data:image\/(jpeg|png)/.test(src) || src.length > 200000) img.removeAttribute('src'); });
+  return { body: presMask(root.innerHTML), bodyClass: document.body.className, theme: document.documentElement.getAttribute('data-theme') || '', y: Math.round(window.scrollY), dy: Math.round(($('#drawer') && $('#drawer').scrollTop) || 0), w: window.innerWidth };
 }
-function presSend(force) {
-  if (!PRES.on) return;
-  if (PRES.win && PRES.win.closed) { presStop(true); return; }
-  const snap = presSnapshot();
-  // The map animates, so leave its picture out when deciding whether anything changed.
-  const plain = snap.body.replace(/data:image\/png;base64,[A-Za-z0-9+/=]+/g, '');
-  let hsh = 0; for (let i = 0; i < plain.length; i++) hsh = (hsh * 31 + plain.charCodeAt(i)) | 0;
-  const key = hsh + ':' + snap.y + ':' + snap.dy + ':' + snap.w;
-  if (!force && key === PRES.last) return;
-  PRES.last = key;
-  presPost({ type: 'outreach-desk-view', live: true, snap });
+async function presSend(force) {
+  if (!PRES.on || !S.db || PRES.busy) return;
+  PRES.busy = true;
+  try {
+    let snap = presSnapshot(true);
+    const plain = snap.body.replace(/data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g, '');
+    let h = 0; for (let i = 0; i < plain.length; i++) h = (h * 31 + plain.charCodeAt(i)) | 0;
+    const key = h + ':' + snap.y + ':' + snap.dy + ':' + snap.w + ':' + snap.theme;
+    if (!force && key === PRES.last) return;
+    let z = await gzip64(snap.body);
+    if (z.length > 230000) { snap = presSnapshot(false); z = await gzip64(snap.body); }
+    if (z.length > 230000) { toast('This view is too big to present. Close a few things and try again.', { err: true }); return; }
+    PRES.last = key; PRES.lastAt = Date.now();
+    await S.db.doc('present/live').set({ on: true, at: nowIso(), k: key, z, bodyClass: snap.bodyClass, theme: snap.theme, y: snap.y, dy: snap.dy, w: snap.w });
+  } catch (e) { toast('Couldn\'t update the class screen: ' + (e.message || e), { err: true }); }
+  finally { PRES.busy = false; }
 }
-function presSoon() { if (!PRES.on || PRES.timer) return; PRES.timer = setTimeout(() => { PRES.timer = null; presSend(false); }, 700); }
+function presSoon() { if (!PRES.on || PRES.timer) return; const wait = Math.max(600, PRES.lastAt + 2500 - Date.now()); PRES.timer = setTimeout(() => { PRES.timer = null; presSend(false); }, wait); }
 function presPaint() { const b = $('#presentBtn'); if (!b) return; b.textContent = PRES.on ? 'Stop presenting' : 'Present to class'; b.classList.toggle('crimson', PRES.on); }
-function presStart() {
-  if (!PRES.win || PRES.win.closed) PRES.win = window.open(PRESENTER_URL, 'outreach-present');
-  if (!PRES.win) { toast('Your browser blocked the presenter window. Allow pop-ups for this page and try again.', { err: true }); return; }
+async function presStart() {
+  if (!S.db) { toast('The page\'s data isn\'t connected yet.', { err: true }); return; }
   PRES.on = true; PRES.last = ''; presPaint();
+  try {
+    const css = [...document.querySelectorAll('style')].map(x => x.textContent).join('\n');
+    await S.db.doc('present/css').set({ z: await gzip64(css), at: nowIso() });
+  } catch (e) { PRES.on = false; presPaint(); toast('Couldn\'t start presenting: ' + (e.message || e), { err: true }); return; }
   if (!PRES.mo) PRES.mo = new MutationObserver(presSoon);
   PRES.mo.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
-  toast('Presenting. Keep the presenter window open; the class screen follows this page.');
-  // Keep sending until the presenter says it got it (it takes a moment to load).
-  let tries = 0; const t = setInterval(() => { if (!PRES.on || PRES.ack || ++tries > 40) return clearInterval(t); presSend(true); }, 1500);
+  // A heartbeat, so the class screen goes blank by itself if this tab closes.
+  PRES.beat = setInterval(() => presSend(true), 30000);
+  await presSend(true);
+  toast('Presenting. On the class computer, open this page\'s link. It shows only what\'s on your screen, with emails and phone numbers hidden.');
 }
-function presStop(quiet) {
-  if (PRES.on) presPost({ type: 'outreach-desk-stop' });
-  PRES.on = false; PRES.ack = false; clearTimeout(PRES.timer); PRES.timer = null; if (PRES.mo) PRES.mo.disconnect(); presPaint();
+async function presStop(quiet) {
+  PRES.on = false; clearTimeout(PRES.timer); PRES.timer = null; clearInterval(PRES.beat); if (PRES.mo) PRES.mo.disconnect(); presPaint();
+  try { await S.db.doc('present/live').set({ on: false, at: nowIso() }); } catch (e) {}
   if (!quiet) toast('Stopped. The class screen is blank again.');
 }
-window.addEventListener('message', e => {
-  const d = e.data;
-  if (!d || typeof d !== 'object') return;
-  if (d.type === 'outreach-present-ready' && PRES.on) presSend(true);
-  if (d.type === 'outreach-present-ack' && PRES.on) PRES.ack = true;
-});
 document.addEventListener('scroll', presSoon, { passive: true, capture: true });
+window.addEventListener('resize', presSoon);
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#presentBtn')) { if (PRES.on) presStop(); else presStart(); } });
-window.addEventListener('pagehide', () => { if (PRES.on) presPost({ type: 'outreach-desk-stop' }); });
+window.addEventListener('pagehide', () => { if (PRES.on) presStop(true); });
+
+// What everyone except the owner sees: the presented copy, or a blank screen.
+function presViewer(db) {
+  document.title = 'Outreach desk';
+  document.body.innerHTML = `<div id="pv" style="position:fixed; inset:0; background:var(--paper); overflow:hidden">
+    <div id="pvOff" style="position:absolute; inset:0; display:grid; place-items:center; text-align:center; padding:16px; color:var(--muted); font-family:var(--sans)">
+      <div><b style="display:block; font-size:20px; color:var(--ink-2); margin-bottom:4px; font-family:var(--serif)">Nothing is being shown right now.</b>This screen stays blank until the presenter turns it on.</div></div>
+    <iframe id="pvFrame" title="Outreach desk" sandbox="allow-same-origin" style="border:0; position:absolute; left:0; top:0; transform-origin:0 0; display:none"></iframe>
+    <button id="pvFs" class="btn sm" style="position:fixed; right:12px; bottom:12px; opacity:.4">Full screen</button></div>`;
+  $('#pvFs').onclick = () => { const el = document.documentElement; if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); };
+  if (!db) { $('#pvOff').querySelector('div').innerHTML = '<b style="display:block; font-size:20px; margin-bottom:4px">Sign in to see this screen.</b>Open this link on claude.ai while signed in.'; return; }
+  let css = '', live = null, shown = '';
+  const fr = $('#pvFrame'), off = $('#pvOff');
+  const fit = () => { if (!live || !live.on) return; const w = Math.max(320, live.w || 1280), sc = window.innerWidth / w; fr.style.width = w + 'px'; fr.style.height = (window.innerHeight / sc) + 'px'; fr.style.transform = `scale(${sc})`; };
+  const paint = async () => {
+    const fresh = live && live.on && live.z && Date.now() - Date.parse(live.at || 0) < 100000;
+    off.style.display = fresh ? 'none' : 'grid'; fr.style.display = fresh ? 'block' : 'none';
+    if (!fresh || !css) return;
+    const key = live.k || live.at;
+    if (key === shown) return; shown = key;
+    let body = ''; try { body = await gunzip64(live.z); } catch (e) { return; }
+    fr.onload = () => { try { const d = fr.contentDocument; d.documentElement.style.overflow = 'hidden'; d.body.style.marginTop = (-(live.y || 0)) + 'px'; const dr = d.getElementById('drawer'); if (dr) dr.scrollTop = live.dy || 0; } catch (e) {} };
+    fr.srcdoc = `<!doctype html><html${live.theme ? ` data-theme="${esc(live.theme)}"` : ''}><head><meta charset="utf-8"><base target="_blank"><style>${css.replace(/<\/style/gi, '<\\/style')}\nhtml,body{overflow:hidden!important}</style></head><body class="${esc(live.bodyClass || '')}">${body}</body></html>`;
+    fit();
+  };
+  window.addEventListener('resize', fit);
+  setInterval(paint, 15000);
+  db.doc('present/css').onSnapshot(async snap => { const d = snap.exists ? snap.data() : null; css = d && d.z ? await gunzip64(d.z).catch(() => '') : ''; shown = ''; paint(); }, () => {});
+  db.doc('present/live').onSnapshot(snap => { live = snap.exists ? snap.data() : null; paint(); }, () => {});
+}
 
 // ---------- boot ----------
 render();
@@ -3595,6 +3627,8 @@ render();
   // Anyone but the student gets a view-only desk: their data, but no Gmail, no CRM
   // calls, no Claude, and no writes (the db rules block writes too).
   S.readOnly = !owner;
+  // Anyone else who opens the link only ever sees what's being presented.
+  if (!owner && window.claude) { presViewer(await window.claude.use('db')); return; }
   { const pb = $('#presentBtn'); if (pb) pb.hidden = !owner; }
   document.body.classList.toggle('ro', S.readOnly); paintFab();
   const [db, mcp, sample, assets] = await Promise.all([
