@@ -3810,14 +3810,39 @@ async function openPastSession(id) {
   renderSes();
 }
 
+function recorderLink(url) {
+  const box = $('#toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.cssText = 'display:flex;flex-direction:column;gap:8px;align-items:stretch';
+  const p = document.createElement('div');
+  p.textContent = "Your phone can't open the recorder from here. Tap the link, or copy it and paste it into Safari or Chrome.";
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  a.textContent = 'Open the recorder';
+  a.style.cssText = 'font-weight:700;color:inherit;text-decoration:underline';
+  const b = document.createElement('button');
+  b.textContent = 'Copy link';
+  b.addEventListener('click', () => navigator.clipboard.writeText(url).then(() => { b.textContent = 'Copied'; }).catch(() => { b.textContent = 'Copy failed'; }));
+  const x = document.createElement('button');
+  x.textContent = 'Close';
+  x.addEventListener('click', () => el.remove());
+  el.append(p, a, b, x);
+  box.appendChild(el);
+}
+
 function openRecorder() {
   if (!SES.consent) { toast('Tick the box once they\'ve said it\'s OK to record.', { err: true }); return; }
   if (!SES.sid) SES.sid = 's' + Date.now().toString(36);
   const t = SES.target;
   const tB64 = btoa(unescape(encodeURIComponent(JSON.stringify(t))));
   const q = new URLSearchParams({ sid: SES.sid, biz: t.business, who: t.name || '', kind: SES.kind, consent: '1', go: '1', ret: settings().desk_url || DESK_SELF_URL, mail: settings().sender_email || '', t: tB64 });
-  const w = window.open(`${RECORDER_URL}?${q}`, '_blank');
-  if (!w) { toast('Your browser blocked the new tab. Allow pop-ups for claude.ai and tap Record again.', { err: true }); return; }
+  const url = `${RECORDER_URL}?${q}`;
+  const w = window.open(url, '_blank');
+  // Phones (and the Claude app) often can't open a tab from inside the desk at all, whatever
+  // the pop-up setting says. Give a plain link to tap, and a copy button to paste into Safari
+  // or Chrome. The recorder works on its own and hands the call back to the desk when it ends.
+  if (!w) { recorderLink(url); SES.external = true; sesBegin(); renderSes(); sesSave(); return; }
   SES.external = true; sesBegin(); renderSes(); sesSave();
 }
 // The recorder tab sends what it writes down as it goes, then the whole thing (with the audio) when you tap End there.
