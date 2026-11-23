@@ -1815,6 +1815,18 @@ async function notifyReply(p, snippet, threadId, noThanks) {
   await patch(p.id, { reply_notified_at: nowIso() });
 }
 
+// When someone other than the listed contact writes back (an office manager answering for
+// the owner), they're who the student talks to from then on: use their name everywhere,
+// and keep the owner's name on file.
+function newContact(p, m) {
+  const addr = normAddr(m.sender);
+  if (!addr || addr === normAddr(p.email)) return {};
+  const shown = ((m.addressDisplayNames || []).find(d => normAddr(d.emailAddress) === addr) || {}).displayName || '';
+  const name = String(shown).replace(/["']/g, '').trim();
+  if (!name || name.includes('@') || name.toLowerCase() === String(p.contact_name || '').toLowerCase()) return {};
+  return { contact_name: name, contact_title: null, owner_name: p.owner_name || p.contact_name || null };
+}
+
 async function handleReplies(threads) {
   for (const t of threads) {
     const msgs = t.messages || [];
@@ -1848,7 +1860,7 @@ async function handleReplies(threads) {
     const again = p.status === 'replied';
     const who = p.contact_name || p.email;
     try {
-      await patch(p.id, { status, replied_at: msgAt, reply_snippet: snippet, reply_thread_id: t.id, reply_from: (/[^\s<>"]+@[^\s<>"]+/.exec(String(latest.sender || '')) || [null])[0], reply_msg_ids: keys },
+      await patch(p.id, { status, replied_at: msgAt, reply_snippet: snippet, reply_thread_id: t.id, reply_from: (/[^\s<>"]+@[^\s<>"]+/.exec(String(latest.sender || '')) || [null])[0], ...newContact(p, latest), reply_msg_ids: keys },
         status === 'not_interested' ? `${who} said no thanks` : again ? `${who} wrote back again` : `${who} replied`);
       delete S.threads[t.id];
       toast(status === 'not_interested' ? `${p.name} said no thanks.` : `${p.name} ${again ? 'wrote back again' : 'replied'}. Open it to answer.`);
