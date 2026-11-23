@@ -1477,7 +1477,7 @@ async function sendReply(p, body) {
 }
 
 async function makePrepSheet(p, pre) {
-  const prompt = `Make a one-page call prep sheet for ${me().name}, a ${me().school} ${me().major || ''} student, who has a short call coming up with a small-business owner. They want to learn how the business really runs day to day${inClassArea(p) ? ', and his UConn course (Connect.AI) may build them a free AI tool later, but this call is about listening, not pitching' : ''}.
+  const prompt = `Make a one-page call prep sheet for ${me().name}, a ${me().school} ${me().major || ''} student, who has a short call coming up with a small-business owner. They want to learn how the business really runs day to day${inClassArea(p) ? '. They are also in a UConn class called Connect.AI, where students build small tools for local businesses as the class project, for class credit. Most of the call is listening; Connect.AI comes up once, near the end, as a class ask, never as a sales pitch' : ''}.
 
 What we know (use only this; if something isn't known, say so instead of guessing). Each fact has the link it came from:
 ${JSON.stringify(businessFacts(p))}
@@ -1491,8 +1491,15 @@ WHAT THEIR WEBSITE SUGGESTS ABOUT HOW THEY WORK (2 to 4 bullets; only what the f
 WHAT THEY SAID (1 or 2 bullets summing up their reply)
 QUESTIONS TO ASK (6 open questions for this kind of business: how a normal day goes, where the hours go, what tools or paper they use, what they'd fix first, how they find customers, what they wish someone had told them when starting)
 WHERE AI MIGHT HELP, TO ASK ABOUT (2 or 3 bullets, written as questions, not promises)
-KEEP IN MIND (2 or 3 bullets: listen more than talk, take notes, ask if it's OK to follow up${inClassArea(p) ? ', mention the form only if it comes up naturally' : ''})
-Under 350 words. No markdown symbols other than "- ". No intro or sign-off. Never state a fact about the business that isn't in the facts above.`;
+${inClassArea(p) ? `CONNECT.AI: WHAT TO SAY (a short script in their own plain, casual voice, like a nervous but friendly college student, never salesy; write the lines in quotes so they can be read out loud):
+- When to bring it up: right after they describe a task that eats their time or that they find annoying. Name the 1 or 2 tasks most likely for this business, based only on the facts above and what they said.
+- One follow-up question to dig into that task first (how often, how long it takes, what they use for it now).
+- The bridge line, specific to this business, e.g. "Honestly, that's the kind of thing my class works on. I'm in a UConn class called Connect.AI where we build small tools for local businesses as our class project, so we do it for class credit. Based on what you said about [their task], I was thinking about pitching [one specific, small idea] to my class."
+- The ask, once: "Would you be open to me sending you a short email about it after this?" If they hesitate: "No worries at all, I really just wanted to learn how you run things."
+- If they're wary of AI: one or two plain lines, e.g. it's a small helper for the boring part, a person still checks everything, and they decide if they want it.
+- Never promise a result, a date or a price. Don't use the words AI-readiness, solution, leverage or streamline.
+` : ''}KEEP IN MIND (2 or 3 bullets: listen more than talk, take notes, ask if it's OK to follow up${inClassArea(p) ? ', mention the form only if it comes up naturally' : ''})
+${inClassArea(p) ? 'Under 500 words' : 'Under 350 words'}. No markdown symbols other than "- ". No intro or sign-off. Never state a fact about the business that isn't in the facts above.`;
   pre.textContent = '';
   const out = await S.sample(prompt, { onText: ({ text }) => { pre.textContent = text; }, modelTier: 'default', cache: false });
   const text = (out && out.text) || pre.textContent;
