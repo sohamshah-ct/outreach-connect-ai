@@ -1327,7 +1327,24 @@ async function sendFollowup(p) {
 
 // ---------- conversations ----------
 const threadIdOf = p => p.reply_thread_id || p.thread_id;
-const fromThem = (p, m) => !!p.email && String(m.sender || '').toLowerCase().includes(p.email.toLowerCase());
+// An address normalized so soham.shah@ and sohamshah@ at the same school count as one person.
+const normAddr = a => { const m = /([^\s<>"]+)@([^\s<>"]+)/.exec(String(a || '').toLowerCase()); return m ? `${m[1].replace(/\./g, '')}@${m[2]}` : ''; };
+const myAddrs = () => new Set([me().schoolEmail, settings().sender_email, settings().cc_email].map(normAddr).filter(Boolean));
+// Anyone in the conversation who isn't the student counts as them: owners often answer
+// from a personal or second address (Jessica at Air Control wrote from jessicam@, not office@).
+const fromThem = (p, m) => { const a = normAddr(m.sender); return !!a && !myAddrs().has(a); };
+// Whether a message came from this particular business: their address, the address they
+// replied from, or another address at their own domain (not gmail.com and the like).
+const FREE_MAIL = /@(gmail|yahoo|hotmail|outlook|aol|icloud|live|msn|comcast|charter|sbcglobal|att|mail|ymail|me)\./i;
+const fromBusiness = (p, m) => {
+  const a = normAddr(m.sender); if (!a) return false;
+  if ([p.email, p.reply_from].map(normAddr).filter(Boolean).includes(a)) return true;
+  const dom = (normAddr(p.email).split('@')[1] || '');
+  return !!dom && !FREE_MAIL.test('@' + dom) && a.endsWith('@' + dom);
+};
+// Every Gmail thread this business's conversation lives in: the first email's, plus any
+// thread they replied in when they wrote from another address.
+const threadIdsOf = p => [...new Set([p.thread_id, p.reply_thread_id, ...(p.reply_thread_ids || [])].filter(Boolean))];
 // Gmail's snippets come HTML-encoded ("I&#39;m"); plain-text bodies don't.
 const unentity = t => String(t || '').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 // Gmail wraps links in a google.com/url redirect when a message is read back;
@@ -1353,8 +1370,14 @@ async function loadThread(p, { force = false } = {}) {
   if (!tid || !S.mcp || S.threadLoading.has(tid) || (S.threads[tid] && !force)) return;
   S.threadLoading.add(tid);
   try {
-    const res = await S.mcp.callTool(GMAIL, 'get_thread', { threadId: tid, messageFormat: 'PLAIN_TEXT' });
-    S.threads[tid] = (res.payload || {}).messages || [];
+    const all = [];
+    for (const id of threadIdsOf(p)) {
+      const res = await S.mcp.callTool(GMAIL, 'get_thread', { threadId: id, messageFormat: 'PLAIN_TEXT' });
+      all.push(...((res.payload || {}).messages || []));
+    }
+    const seenIds = new Set();
+    const at = m => Number(m.internalDate) || Date.parse(m.date || '') || 0;
+    S.threads[tid] = all.filter(m => !m.id || (!seenIds.has(m.id) && seenIds.add(m.id))).sort((a, b) => at(a) - at(b));
     saveThreadCopy(tid, S.threads[tid]);
   } catch (e) {
     S.threads[tid] = { error: mcpMessage(e, GMAIL) };
@@ -1795,9 +1818,9 @@ async function notifyReply(p, snippet, threadId, noThanks) {
 async function handleReplies(threads) {
   for (const t of threads) {
     const msgs = t.messages || [];
-    const p = S.prospects.find(x => ['sent', 'followed_up', 'replied'].includes(x.status) && x.email && msgs.some(m => fromThem(x, m)));
+    const p = S.prospects.find(x => ['sent', 'followed_up', 'replied'].includes(x.status) && x.email && msgs.some(m => fromBusiness(x, m)));
     if (!p || S.busy.has(p.id)) continue;
-    const theirs = msgs.filter(m => fromThem(p, m));
+    const theirs = msgs.filter(m => fromBusiness(p, m));
     const keys = theirs.map(m => m.id || String(m.snippet || '').slice(0, 80));
     const seen = new Set(p.reply_msg_ids || []);
     if (p.status === 'replied' && !p.reply_msg_ids) { patch(p.id, { reply_msg_ids: keys }).catch(() => {}); continue; } // first look at an older reply
@@ -1825,7 +1848,7 @@ async function handleReplies(threads) {
     const again = p.status === 'replied';
     const who = p.contact_name || p.email;
     try {
-      await patch(p.id, { status, replied_at: msgAt, reply_snippet: snippet, reply_thread_id: t.id, reply_msg_ids: keys },
+      await patch(p.id, { status, replied_at: msgAt, reply_snippet: snippet, reply_thread_id: t.id, reply_from: (/[^\s<>"]+@[^\s<>"]+/.exec(String(latest.sender || '')) || [null])[0], reply_msg_ids: keys },
         status === 'not_interested' ? `${who} said no thanks` : again ? `${who} wrote back again` : `${who} replied`);
       delete S.threads[t.id];
       toast(status === 'not_interested' ? `${p.name} said no thanks.` : `${p.name} ${again ? 'wrote back again' : 'replied'}. Open it to answer.`);
@@ -2438,7 +2461,7 @@ function replyBoxHtml(p) {
   return `<section class="section reply-box${waiting ? ' waiting' : ''}">
     <header class="rb-head"><h3>${waiting ? `Reply to ${esc(first)}` : 'Write again'}</h3><span class="rb-when">${waiting ? `${esc(first)} wrote ${esc(ago(p.replied_at))}` : `You answered ${esc(ago(p.answered_at))}`}</span></header>
     <div class="rb-sec">
-      <label class="rb-to" for="rBody">To ${esc(p.email || '')}${settings().cc_email ? ` · cc ${esc(settings().cc_email)}` : ''}</label>
+      <label class="rb-to" for="rBody">To ${esc(p.reply_from || p.email || '')}${settings().cc_email ? ` · cc ${esc(settings().cc_email)}` : ''}</label>
       <textarea id="rBody" spellcheck="true" placeholder="${S.sample ? 'Press “Draft with Claude” and it writes one from their email, or type your own.' : 'Type your reply.'}">${esc(draft)}</textarea>
     </div>
     ${timesHtml(p, draft)}
