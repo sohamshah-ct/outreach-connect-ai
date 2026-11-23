@@ -1426,7 +1426,7 @@ async function draftReply(p, ta) {
   const m = me();
   const prompt = `You are drafting an email reply for ${m.name}, ${m.major ? `a ${m.major} major` : 'a student'} at ${m.school}, to a small-business owner who wrote back to them.
 
-Who ${m.first} is (they can mention their experience as plain facts, but never set it against the business, like calling it big-company work, which reads as a put-down): ${m.about || 'a college student.'} They reached out mainly to learn how small businesses actually run and to be useful to them. ${inClassArea(p) ? 'They are also in Connect.AI, a UConn course where student teams work with small businesses in Connecticut, New England and New York to find where AI could save them time and build it for free. The optional application is at connect-ai.world/apply (about 3 minutes, free AI-readiness report). Do not claim any partnership with the CT Small Business Development Center or anyone else.' : 'This business is outside the area their course works in, so do not mention Connect.AI or the form.'}
+Who ${m.first} is (they can mention their experience as plain facts, but never set it against the business, like calling it big-company work, which reads as a put-down): ${m.about || 'a college student.'} They reached out mainly to learn how small businesses actually run and to be useful to them. ${inClassArea(p) ? 'They are also in Connect.AI, a UConn course where student teams work with small businesses in Connecticut, New England and New York to find where AI could save them time and build small tools for them as the class project, which students do for class credit (never call it free). The optional application is at connect-ai.world/apply (about 3 minutes, free AI-readiness report). Do not claim any partnership with the CT Small Business Development Center or anyone else.' : 'This business is outside the area their course works in, so do not mention Connect.AI or the form.'}
 
 What we know about the business (use only this; never invent anything):
 ${JSON.stringify(businessFacts(p))}
@@ -1477,7 +1477,7 @@ async function sendReply(p, body) {
 }
 
 async function makePrepSheet(p, pre) {
-  const prompt = `Make a one-page call prep sheet for ${me().name}, a ${me().school} ${me().major || ''} student, who has a short call coming up with a small-business owner. They want to learn how the business really runs day to day${inClassArea(p) ? '. They are also in a UConn class called Connect.AI, where students build small tools for local businesses as the class project, for class credit. Most of the call is listening; Connect.AI comes up once, near the end, as a class ask, never as a sales pitch' : ''}.
+  const prompt = `Make a one-page call prep sheet for ${me().name}, a ${me().school} ${me().major || ''} student, who has a short call coming up with a small-business owner. They want to learn how the business really runs day to day${inClassArea(p) ? '. They are also in a UConn class called Connect.AI, where students build small tools for local businesses as the class project, for class credit. Connect.AI is NOT brought up on the call; the call is only for listening, and the class idea goes in the follow-up email afterward' : ''}.
 
 What we know (use only this; if something isn't known, say so instead of guessing). Each fact has the link it came from:
 ${JSON.stringify(businessFacts(p))}
@@ -1491,14 +1491,13 @@ WHAT THEIR WEBSITE SUGGESTS ABOUT HOW THEY WORK (2 to 4 bullets; only what the f
 WHAT THEY SAID (1 or 2 bullets summing up their reply)
 QUESTIONS TO ASK (6 open questions for this kind of business: how a normal day goes, where the hours go, what tools or paper they use, what they'd fix first, how they find customers, what they wish someone had told them when starting)
 WHERE AI MIGHT HELP, TO ASK ABOUT (2 or 3 bullets, written as questions, not promises)
-${inClassArea(p) ? `CONNECT.AI: WHAT TO SAY (a short script in their own plain, casual voice, like a nervous but friendly college student, never salesy; write the lines in quotes so they can be read out loud):
-- When to bring it up: right after they describe a task that eats their time or that they find annoying. Name the 1 or 2 tasks most likely for this business, based only on the facts above and what they said.
-- One follow-up question to dig into that task first (how often, how long it takes, what they use for it now).
-- The bridge line, specific to this business, e.g. "Honestly, that's the kind of thing my class works on. I'm in a UConn class called Connect.AI where we build small tools for local businesses as our class project, so we do it for class credit. Based on what you said about [their task], I was thinking about pitching [one specific, small idea] to my class."
-- The ask, once: "Would you be open to me sending you a short email about it after this?" If they hesitate: "No worries at all, I really just wanted to learn how you run things."
-- If they're wary of AI: one or two plain lines, e.g. it's a small helper for the boring part, a person still checks everything, and they decide if they want it.
-- Never promise a result, a date or a price. Don't use the words AI-readiness, solution, leverage or streamline.
-` : ''}KEEP IN MIND (2 or 3 bullets: listen more than talk, take notes, ask if it's OK to follow up${inClassArea(p) ? ', mention the form only if it comes up naturally' : ''})
+${inClassArea(p) ? `CONNECT.AI: SAVE IT FOR THE FOLLOW-UP EMAIL (plain, casual voice; write spoken lines in quotes):
+- Don't bring up Connect.AI on the call. Just listen.
+- One question to ask about what they're working on or changing next, e.g. "Is there anything new you're trying to set up or figure out right now?"
+- What to listen for: the 1 or 2 projects or tasks most likely for this kind of business, based only on the facts above and what they said.
+- At the end: "Would you mind if I sent you a quick follow-up email after this?"
+- Possible idea for the follow-up email: one small, specific thing the class could build if they mention that project or task. Never promise a result, a date or a price.
+` : ''}KEEP IN MIND (2 or 3 bullets: listen more than talk, take notes, ask if it's OK to send a follow-up email)
 ${inClassArea(p) ? 'Under 500 words' : 'Under 350 words'}. No markdown symbols other than "- ". No intro or sign-off. Never state a fact about the business that isn't in the facts above.`;
   pre.textContent = '';
   const out = await S.sample(prompt, { onText: ({ text }) => { pre.textContent = text; }, modelTier: 'default', cache: false });
@@ -3568,7 +3567,7 @@ async function endSession() {
   const two = !!(segs && SES.voices && SES.voices.two);
   const voiced = segs ? segs.map(s => `${two ? `(voice ${s.voice || '?'}) ` : ''}${s.text}`).join('\n') : transcript;
   const prompt = [
-    `You help ${me().name || 'a UConn student'} (${me().majorCap || 'student'} at UConn) after a ${SES.kind} with a small-business owner. He reached out to learn how they started and run their business; he's also in a UConn class, Connect.AI, where students help local small businesses with AI for free.`,
+    `You help ${me().name || 'a UConn student'} (${me().majorCap || 'student'} at UConn) after a ${SES.kind} with a small-business owner. He reached out to learn how they started and run their business; he's also in a UConn class, Connect.AI, where students build small tools for local businesses as the class project, for class credit (never say free). The owner already knows he's in a class.`,
     `Business: ${t.business}${t.town ? ' (' + t.town + ')' : ''}. Person: ${t.name || 'the owner'}. Length: ${fmtClock(SES.elapsedMs)}. Today: ${today}.`,
     `TRANSCRIPT (from the browser's speech-to-text, one line per stretch of speech; it can mishear words, so never treat a garbled phrase as a fact${two ? '. The voice numbers come from the sound and are usually right: one voice is him, the other is them' : ''}):\n${voiced || '(none)'}`,
     `HIS NOTES (more reliable than the transcript):\n${notes || '(none)'}`,
@@ -3580,7 +3579,7 @@ async function endSession() {
     '"next_step": one line, the single next step with them.',
     '"next_step_due": a date YYYY-MM-DD if one was agreed or is obvious, else "".',
     '"connect_ai_fit": "yes", "maybe" or "no", from whether they described time-consuming work AI could help with and seemed open.',
-    `"thank_you": a short thank-you email body to ${t.name ? t.name.split(' ')[0] : 'them'}: start "Hi ${t.name ? t.name.split(' ')[0] : 'there'},", thank them for their time, mention one specific thing they told him, then (only if connect_ai_fit is yes or maybe) ONE plain sentence like "I'm also in a UConn class called Connect.AI where students help local small businesses with things like that for free. If it sounds useful, I'm happy to send more about it." tied to what they said takes their time. End "Thanks,\\n${me().first}". No links, no pitch beyond that sentence, under 110 words.`,
+    `"thank_you": a short thank-you email body to ${t.name ? t.name.split(' ')[0] : 'them'}: start "Hi ${t.name ? t.name.split(' ')[0] : 'there'},", then "Thank you so much for taking time out of your day to talk with me." and one sentence on a specific thing they told him that he enjoyed hearing. Only if connect_ai_fit is yes or maybe, add as its own short paragraph: "To give you a bit more context, the class I'm in is called Connect.AI. Students build small tools for local businesses as our class project, so we do it for class credit." Then one short paragraph that names, in their own words, a specific project they're working on or a task that takes their time (only one they actually described; if they said something isn't a problem, don't use it), and says "I was thinking about pitching my class on" one small, specific idea for it. Then "Would you be open to that? If not, no worries at all." If connect_ai_fit is no, skip the class entirely and just thank them. End "Best,\\n${me().first}". No links, never say free, never promise a result, under 150 words.`,
   ].join('\n\n');
   let out;
   try {
