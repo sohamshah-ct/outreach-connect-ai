@@ -390,7 +390,28 @@ table.list a{color:var(--info); text-decoration:none;}
 .ib-pill b{font-weight:600; color:var(--ink); margin-right:3px;}
 .ib-pill:hover{border-color:var(--ink-2);}
 .ib-pill.quiet{border-style:dashed;}
+/* Pipeline under the inbox: one card per stage, roomy rows. */
+.pipe{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin-top:14px; align-items:start;}
+.pc{border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;}
+.pc-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:14px 18px 10px;}
+.pc-head b{font-family:var(--serif); font-size:17px; font-weight:600; color:var(--ink);}
+.pc-head .n{font-family:var(--mono); font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums;}
+.pc-sub{padding:0 18px 10px; margin-top:-6px; font-size:12.5px; color:var(--muted);}
+.pc.accent{border-top:3px solid var(--ok);}
+.pc-list{list-style:none; margin:0; padding:0;}
+.pc-row{display:flex; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid var(--line); cursor:pointer; transition:background .12s;}
+.pc-row:hover,.pc-row:focus-visible{background:var(--wash); outline:none;}
+.pc-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.pc-name{font-size:14.5px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.pc-biz{font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.pc-meta{display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex-shrink:0;}
+.pc-when{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums;}
+.pc-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; padding:3px 8px; border-radius:999px; white-space:nowrap; background:var(--wash-2); color:var(--ink-2);}
+.pc-tag.ok{background:var(--ok-soft); color:var(--ok);}
+.pc-tag.warn{background:var(--warn-soft); color:var(--warn);}
 @media (max-width:640px){
+  .pipe{grid-template-columns:1fr;}
+  .pc-row{padding:12px 16px;}
   .ib-row{grid-template-columns:40px minmax(0,1fr); row-gap:8px; padding:10px 12px;}
   .ib-side{grid-column:2; flex-wrap:wrap;}
   .ib-said{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
@@ -763,6 +784,7 @@ const STATUS = {
   skipped: { label: 'Skipped', badge: 'gray' },
   no_email: { label: 'No email found', badge: 'gray' },
   needs_check: { label: 'Needs a look', badge: 'warn' },
+  gone_cold: { label: 'Gone cold', badge: 'gray' },
 };
 const COLUMNS = [
   { label: 'Ready for review', dot: 'dot f', statuses: ['ready'] },
@@ -773,6 +795,7 @@ const COLUMNS = [
 ];
 const CLOSED_COLUMNS = [
   { label: 'Not interested', dot: 'dot', statuses: ['not_interested'] },
+  { label: 'Gone cold', dot: 'dot', statuses: ['gone_cold'] },
   { label: 'Bounced', dot: 'dot', statuses: ['bounced'] },
   { label: 'Needs a look', dot: 'dot', statuses: ['needs_check'] },
   { label: 'No email found', dot: 'dot', statuses: ['no_email'] },
@@ -780,7 +803,7 @@ const CLOSED_COLUMNS = [
 ];
 // "Needs a look": the research wasn't sure it had the right business, town
 // or email, so it's kept out of the review list.
-const CLOSED = new Set(['not_interested', 'bounced', 'skipped', 'no_email', 'needs_check']);
+const CLOSED = new Set(['not_interested', 'bounced', 'skipped', 'no_email', 'needs_check', 'gone_cold']);
 const SENT = new Set(['sent', 'followed_up', 'replied', 'not_interested', 'bounced']);
 const EMAIL_SOURCE = {
   website: ['From their website', 'ok'], osm: ['From OpenStreetMap', 'info'], registry: ['Filed with the CT Secretary of State', 'info'],
@@ -1936,19 +1959,38 @@ function renderNotice() {
     html += `<div class="banner" style="display:block"><b><span class="live" style="margin:0 6px 0 0"><i></i></span>Research run in progress</b><p>${esc(S.meta.progress)}${S.meta.progress_at ? ` · updated ${ago(S.meta.progress_at)}` : ''}</p>${total ? `<div style="margin-top:10px; display:flex; align-items:center; gap:12px"><div role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}" aria-label="Businesses researched" style="flex:1; height:6px; background:var(--wash-2); border-radius:6px; overflow:hidden"><div style="width:${pct}%; height:100%; background:var(--navy); border-radius:6px; transition:width .4s"></div></div><span class="mono" style="white-space:nowrap; font-variant-numeric:tabular-nums">${done} of ${total} researched</span></div>` : ''}</div>`;
   }
   // Every business that wrote back lands in exactly one place, in this order:
-  // needs your reply → call scheduled → working with (had a call) → later (snoozed) → call to schedule (their move).
-  const waiting = S.prospects.filter(needsAnswer).sort((a, b) => String(a.replied_at).localeCompare(String(b.replied_at)));
+  // needs your reply → call scheduled → working with (a fit) → talked (had a call) → later (snoozed) → call to schedule (their move).
+  // Gone cold: no call set and nothing in over two weeks (Soham's rule) → off the desk, unless flagged keep.
+  const passed = p => p.crm_stage === 'passed' || CLOSED.has(p.status) || p.fit === 'no';
+  const hadCall = p => !!(p.called_at || p.thanked_at);
+  const lastTouch = p => [p.replied_at, p.answered_at, ...(p.offered_slots || []).map(s => s && s.start)].filter(Boolean).map(String).sort().pop() || '';
+  const cold = p => !p.keep && !hadCall(p) && !upcomingCall(p) && lastTouch(p) && Date.now() - new Date(lastTouch(p).length > 16 ? lastTouch(p) : lastTouch(p) + 'Z').getTime() > 14 * 86400000;
+  const waiting = S.prospects.filter(p => needsAnswer(p) && !cold(p)).sort((a, b) => String(a.replied_at).localeCompare(String(b.replied_at)));
   const placed = new Set(waiting.map(p => p.id));
   const coming = S.prospects.map(p => ({ p, at: !placed.has(p.id) && (p.status === 'replied' || p.call_at) ? upcomingCall(p) : null })).filter(x => x.at).sort((a, b) => a.at - b.at);
   coming.forEach(x => placed.add(x.p.id));
-  const passed = p => p.crm_stage === 'passed' || CLOSED.has(p.status);
-  const working = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && (p.called_at || p.thanked_at)).sort((a, b) => String(b.called_at || b.thanked_at).localeCompare(String(a.called_at || a.thanked_at)));
+  const byCall = (a, b) => String(b.called_at || b.thanked_at).localeCompare(String(a.called_at || a.thanked_at));
+  const working = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && (p.fit === 'yes' || ['applied', 'selected', 'active'].includes(p.crm_stage))).sort(byCall);
   working.forEach(p => placed.add(p.id));
+  const talked = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && hadCall(p)).sort(byCall);
+  talked.forEach(p => placed.add(p.id));
   const later = S.prospects.filter(p => !placed.has(p.id) && replyLater(p)).sort((a, b) => String(a.snooze_until).localeCompare(String(b.snooze_until)));
   later.forEach(p => placed.add(p.id));
-  const toSchedule = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && p.status === 'replied').sort((a, b) => String(b.answered_at || b.replied_at).localeCompare(String(a.answered_at || a.replied_at)));
+  const toSchedule = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && p.status === 'replied' && !cold(p)).sort((a, b) => lastTouch(b).localeCompare(lastTouch(a)));
   const shortDay = iso => new Date(iso).toLocaleDateString(undefined, { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
-  if (waiting.length || coming.length || later.length || working.length || toSchedule.length) {
+  const callTag = p => !p.thanked_at ? ['warn', 'Thank-you not sent'] : p.fit === 'pitched' ? ['', 'Idea pitched'] : ['', 'Thanked'];
+  const card = (title, sub, items, rowFn, cls = '') => items.length ? `<section class="pc ${cls}"><div class="pc-head"><b>${title}</b><span class="n">${items.length}</span></div>${sub ? `<div class="pc-sub">${sub}</div>` : ''}<ul class="pc-list">${items.map(rowFn).join('')}</ul></section>` : '';
+  const pRow = (p, when, tag) => `<li class="pc-row" data-open="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(shortName(p.name))}">
+      <span class="pc-main"><span class="pc-name">${esc(p.contact_name || shortName(p.name))}</span><span class="pc-biz">${esc(shortName(p.name))}${p.town ? ` · ${esc(p.town)}` : ''}</span></span>
+      <span class="pc-meta">${when ? `<span class="pc-when">${esc(when)}</span>` : ''}${tag && tag[1] ? `<span class="pc-tag ${tag[0]}">${esc(tag[1])}</span>` : ''}</span></li>`;
+  const pipe = [
+    card('Calls scheduled', '', coming, x => pRow(x.p, callLabel(x.at), ['ok', 'Confirmed']), 'accent'),
+    card('Working with', 'Good fits for the class', working, p => pRow(p, p.called_at ? `Talked ${shortDay(p.called_at)}` : '', callTag(p))),
+    card('Talked', 'Had a call; no project yet', talked, p => pRow(p, `${shortDay(p.called_at || p.thanked_at)}`, callTag(p))),
+    card('Calls to schedule', 'You answered; their turn to pick a time', toSchedule, p => pRow(p, `Answered ${shortDay(p.answered_at || p.replied_at)}`, p.offered_slots && p.offered_slots.length ? ['', 'Times offered'] : ['', 'Waiting'])),
+    card('Later', 'They asked you to check back', later, p => pRow(p, `After ${new Date(p.snooze_until + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`, null)),
+  ].join('');
+  if (waiting.length || pipe) {
     const days = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
     const row = p => {
       const d = days(p.replied_at);
@@ -1967,13 +2009,7 @@ function renderNotice() {
         <b>${waiting.length ? `${waiting.length} ${waiting.length === 1 ? 'person is' : 'people are'} waiting on you` : 'You\'re caught up'}</b></div>
         ${waiting.length ? '<span class="ib-hint">Oldest first. Open one to read the full email and send the drafted reply.</span>' : ''}</header>
       ${waiting.length ? `<ul class="ib-list">${waiting.map(row).join('')}</ul>` : ''}
-      ${coming.length || later.length || working.length || toSchedule.length ? `<div class="ib-foot">
-        ${coming.length ? `<div class="ib-group"><span class="eyebrow">Calls scheduled</span>${coming.map(x => `<button class="ib-pill" data-open="${esc(x.p.id)}"><b>${esc(shortName(x.p.name))}</b> ${esc(callLabel(x.at))}</button>`).join('')}</div>` : ''}
-        ${toSchedule.length ? `<div class="ib-group"><span class="eyebrow" title="They're open to a call; you've answered and it's their turn to pick a time">Calls to schedule</span>${toSchedule.map(p => `<button class="ib-pill quiet" data-open="${esc(p.id)}" title="You answered ${esc(p.answered_at ? when(p.answered_at) : '')}; waiting on them"><b>${esc(shortName(p.name))}</b> ${p.offered_slots && p.offered_slots.length ? 'times offered' : 'waiting on them'}${p.answered_at ? ' · ' + esc(shortDay(p.answered_at)) : ''}</button>`).join('')}</div>` : ''}
-        ${working.length ? `<div class="ib-group"><span class="eyebrow" title="You've had a call with them">Working with</span>${working.map(p => `<button class="ib-pill" data-open="${esc(p.id)}"><b>${esc(shortName(p.name))}</b> ${p.thanked_at ? `talked ${esc(shortDay(p.called_at || p.call_at || p.thanked_at))}` : 'thank-you not sent'}</button>`).join('')}</div>` : ''}
-        ${later.length ? `<div class="ib-group"><span class="eyebrow">Later</span>${later.map(p => `<button class="ib-pill quiet" data-open="${esc(p.id)}" title="${esc(p.snooze_reason || '')}"><b>${esc(shortName(p.name))}</b> after ${esc(new Date(p.snooze_until + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</button>`).join('')}</div>` : ''}
-      </div>` : ''}
-    </section>`;
+    </section>${pipe ? `<div class="pipe">${pipe}</div>` : ''}`;
   }
   const queued = S.prospects.filter(p => p.status === 'queued').length;
   if (queued && !inSendWindow() && S.tab !== 'review') {
@@ -3269,7 +3305,7 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.drawerId) { closeDrawer(); return; }
-  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.classList.contains('ib-row')) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && (document.activeElement.classList.contains('ib-row') || document.activeElement.classList.contains('pc-row'))) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
   if (S.tab !== 'review' || S.drawerId || e.metaKey || e.ctrlKey || e.altKey) return;
   if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
   const k = e.key.toLowerCase();
