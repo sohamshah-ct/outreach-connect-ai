@@ -1935,10 +1935,20 @@ function renderNotice() {
     const pct = total ? Math.round((done / total) * 100) : 0;
     html += `<div class="banner" style="display:block"><b><span class="live" style="margin:0 6px 0 0"><i></i></span>Research run in progress</b><p>${esc(S.meta.progress)}${S.meta.progress_at ? ` · updated ${ago(S.meta.progress_at)}` : ''}</p>${total ? `<div style="margin-top:10px; display:flex; align-items:center; gap:12px"><div role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}" aria-label="Businesses researched" style="flex:1; height:6px; background:var(--wash-2); border-radius:6px; overflow:hidden"><div style="width:${pct}%; height:100%; background:var(--navy); border-radius:6px; transition:width .4s"></div></div><span class="mono" style="white-space:nowrap; font-variant-numeric:tabular-nums">${done} of ${total} researched</span></div>` : ''}</div>`;
   }
+  // Every business that wrote back lands in exactly one place, in this order:
+  // needs your reply → call scheduled → working with (had a call) → later (snoozed) → call to schedule (their move).
   const waiting = S.prospects.filter(needsAnswer).sort((a, b) => String(a.replied_at).localeCompare(String(b.replied_at)));
-  const later = S.prospects.filter(p => replyLater(p) && !upcomingCall(p)).sort((a, b) => String(a.snooze_until).localeCompare(String(b.snooze_until)));
-  const coming = S.prospects.map(p => ({ p, at: p.status === 'replied' || p.call_at ? upcomingCall(p) : null })).filter(x => x.at && x.at.getTime() < Date.now() + 14 * 86400000).sort((a, b) => a.at - b.at);
-  if (waiting.length || coming.length || later.length) {
+  const placed = new Set(waiting.map(p => p.id));
+  const coming = S.prospects.map(p => ({ p, at: !placed.has(p.id) && (p.status === 'replied' || p.call_at) ? upcomingCall(p) : null })).filter(x => x.at).sort((a, b) => a.at - b.at);
+  coming.forEach(x => placed.add(x.p.id));
+  const passed = p => p.crm_stage === 'passed' || CLOSED.has(p.status);
+  const working = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && (p.called_at || p.thanked_at)).sort((a, b) => String(b.called_at || b.thanked_at).localeCompare(String(a.called_at || a.thanked_at)));
+  working.forEach(p => placed.add(p.id));
+  const later = S.prospects.filter(p => !placed.has(p.id) && replyLater(p)).sort((a, b) => String(a.snooze_until).localeCompare(String(b.snooze_until)));
+  later.forEach(p => placed.add(p.id));
+  const toSchedule = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && p.status === 'replied').sort((a, b) => String(b.answered_at || b.replied_at).localeCompare(String(a.answered_at || a.replied_at)));
+  const shortDay = iso => new Date(iso).toLocaleDateString(undefined, { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+  if (waiting.length || coming.length || later.length || working.length || toSchedule.length) {
     const days = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
     const row = p => {
       const d = days(p.replied_at);
@@ -1957,8 +1967,10 @@ function renderNotice() {
         <b>${waiting.length ? `${waiting.length} ${waiting.length === 1 ? 'person is' : 'people are'} waiting on you` : 'You\'re caught up'}</b></div>
         ${waiting.length ? '<span class="ib-hint">Oldest first. Open one to read the full email and send the drafted reply.</span>' : ''}</header>
       ${waiting.length ? `<ul class="ib-list">${waiting.map(row).join('')}</ul>` : ''}
-      ${coming.length || later.length ? `<div class="ib-foot">
-        ${coming.length ? `<div class="ib-group"><span class="eyebrow">Calls coming up</span>${coming.map(x => `<button class="ib-pill" data-open="${esc(x.p.id)}"><b>${esc(shortName(x.p.name))}</b> ${esc(callLabel(x.at))}</button>`).join('')}</div>` : ''}
+      ${coming.length || later.length || working.length || toSchedule.length ? `<div class="ib-foot">
+        ${coming.length ? `<div class="ib-group"><span class="eyebrow">Calls scheduled</span>${coming.map(x => `<button class="ib-pill" data-open="${esc(x.p.id)}"><b>${esc(shortName(x.p.name))}</b> ${esc(callLabel(x.at))}</button>`).join('')}</div>` : ''}
+        ${toSchedule.length ? `<div class="ib-group"><span class="eyebrow" title="They're open to a call; you've answered and it's their turn to pick a time">Calls to schedule</span>${toSchedule.map(p => `<button class="ib-pill quiet" data-open="${esc(p.id)}" title="You answered ${esc(p.answered_at ? when(p.answered_at) : '')}; waiting on them"><b>${esc(shortName(p.name))}</b> ${p.offered_slots && p.offered_slots.length ? 'times offered' : 'waiting on them'}${p.answered_at ? ' · ' + esc(shortDay(p.answered_at)) : ''}</button>`).join('')}</div>` : ''}
+        ${working.length ? `<div class="ib-group"><span class="eyebrow" title="You've had a call with them">Working with</span>${working.map(p => `<button class="ib-pill" data-open="${esc(p.id)}"><b>${esc(shortName(p.name))}</b> ${p.thanked_at ? `talked ${esc(shortDay(p.called_at || p.call_at || p.thanked_at))}` : 'thank-you not sent'}</button>`).join('')}</div>` : ''}
         ${later.length ? `<div class="ib-group"><span class="eyebrow">Later</span>${later.map(p => `<button class="ib-pill quiet" data-open="${esc(p.id)}" title="${esc(p.snooze_reason || '')}"><b>${esc(shortName(p.name))}</b> after ${esc(new Date(p.snooze_until + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</button>`).join('')}</div>` : ''}
       </div>` : ''}
     </section>`;
