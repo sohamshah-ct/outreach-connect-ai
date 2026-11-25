@@ -390,28 +390,41 @@ table.list a{color:var(--info); text-decoration:none;}
 .ib-pill b{font-weight:600; color:var(--ink); margin-right:3px;}
 .ib-pill:hover{border-color:var(--ink-2);}
 .ib-pill.quiet{border-style:dashed;}
-/* Pipeline under the inbox: one card per stage, roomy rows. */
-.pipe{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin-top:14px; align-items:start;}
-.pc{border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;}
-.pc-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:14px 18px 10px;}
-.pc-head b{font-family:var(--serif); font-size:17px; font-weight:600; color:var(--ink);}
-.pc-head .n{font-family:var(--mono); font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums;}
-.pc-sub{padding:0 18px 10px; margin-top:-6px; font-size:12.5px; color:var(--muted);}
-.pc.accent{border-top:3px solid var(--ok);}
-.pc-list{list-style:none; margin:0; padding:0;}
-.pc-row{display:flex; align-items:center; gap:14px; padding:13px 18px; border-top:1px solid var(--line); cursor:pointer; transition:background .12s;}
-.pc-row:hover,.pc-row:focus-visible{background:var(--wash); outline:none;}
-.pc-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
-.pc-name{font-size:14.5px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.pc-biz{font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-.pc-meta{display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex-shrink:0;}
-.pc-when{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums;}
-.pc-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; padding:3px 8px; border-radius:999px; white-space:nowrap; background:var(--wash-2); color:var(--ink-2);}
-.pc-tag.ok{background:var(--ok-soft); color:var(--ok);}
-.pc-tag.warn{background:var(--warn-soft); color:var(--warn);}
+/* Conversations: one calm panel, tabs on top, one list at a time. */
+.cv{margin-top:16px; border:1px solid var(--line); border-radius:14px; background:var(--paper); box-shadow:var(--shadow); overflow:hidden;}
+.cv-top{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:16px 20px 12px;}
+.cv-title{font-family:var(--serif); font-size:19px; font-weight:600; color:var(--ink);}
+.cv-tabs{display:flex; gap:4px; padding:3px; border-radius:999px; background:var(--wash); overflow-x:auto; scrollbar-width:none; max-width:100%;}
+.cv-tabs::-webkit-scrollbar{display:none;}
+.cv-tab{border:0; background:transparent; color:var(--muted); font:500 13px var(--sans); padding:7px 13px; border-radius:999px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:7px; transition:background .15s,color .15s;}
+.cv-tab:hover{color:var(--ink);}
+.cv-tab.on{background:var(--paper); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.12);}
+.cv-n{font-family:var(--mono); font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;}
+.cv-note{margin:0; padding:0 20px 10px; font-size:13px; color:var(--muted);}
+.cv-list{list-style:none; margin:0; padding:0;}
+.cv-row{display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:18px; padding:14px 20px; border-top:1px solid var(--line); cursor:pointer; transition:background .12s;}
+.cv-row:hover,.cv-row:focus-visible{background:var(--wash); outline:none;}
+.cv-main{display:flex; flex-direction:column; gap:4px; min-width:0;}
+.cv-who{font-size:14.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.cv-who b{font-weight:600;}
+.cv-who span{color:var(--muted);}
+.cv-sub{font-size:13px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.cv-meta{font-size:12.5px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums;}
+.cv-act{display:flex; align-items:center; gap:4px;}
+.cv-act .btn{pointer-events:none;}
+.cv-done{border:0; background:transparent; color:var(--muted); font:500 12.5px var(--sans); padding:7px 10px; border-radius:8px; cursor:pointer;}
+.cv-done:hover{color:var(--ink); background:var(--wash-2);}
+.cv-more{display:block; width:100%; border:0; border-top:1px solid var(--line); background:transparent; color:var(--ink-2); font:500 13px var(--sans); padding:12px; cursor:pointer;}
+.cv-more:hover{background:var(--wash); color:var(--ink);}
+.cv-empty{margin:0; padding:6px 20px 22px; color:var(--muted); font-size:14px;}
 @media (max-width:640px){
-  .pipe{grid-template-columns:1fr;}
-  .pc-row{padding:12px 16px;}
+  .cv-top{padding:14px 16px 10px;}
+  .cv-note{padding:0 16px 10px;}
+  .cv-row{grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; padding:13px 16px;}
+  .cv-sub{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+  .cv-act{grid-column:1 / -1;}
+}
+@media (max-width:640px){
   .ib-row{grid-template-columns:40px minmax(0,1fr); row-gap:8px; padding:10px 12px;}
   .ib-side{grid-column:2; flex-wrap:wrap;}
   .ib-said{white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
@@ -1145,6 +1158,7 @@ const S = {
   crmAll: null, crmMine: null, crmBoard: null, boardWho: '', crmState: 'connecting', crmError: '', gmailState: 'unknown',
   tab: lsGet('outreach-tab') || 'review',
   q: '', state: '', town: '', fit: 0, closed: false,
+  pipeTab: lsGet('pipe-tab') || '', pipeAll: false,
   reviewMode: lsGet('review-mode') || 'today', rvBucket: '', rvWeb: false, rvOwner: false,
   reviewId: null, drawerId: null, confirming: null,
   sort: { key: 'fit_score', dir: -1 },
@@ -1978,38 +1992,46 @@ function renderNotice() {
   later.forEach(p => placed.add(p.id));
   const toSchedule = S.prospects.filter(p => !placed.has(p.id) && !passed(p) && p.status === 'replied' && !cold(p)).sort((a, b) => lastTouch(b).localeCompare(lastTouch(a)));
   const shortDay = iso => new Date(iso).toLocaleDateString(undefined, { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
-  const callTag = p => !p.thanked_at ? ['warn', 'Thank-you not sent'] : p.fit === 'pitched' ? ['', 'Idea pitched'] : ['', 'Thanked'];
-  const card = (title, sub, items, rowFn, cls = '') => items.length ? `<section class="pc ${cls}"><div class="pc-head"><b>${title}</b><span class="n">${items.length}</span></div>${sub ? `<div class="pc-sub">${sub}</div>` : ''}<ul class="pc-list">${items.map(rowFn).join('')}</ul></section>` : '';
-  const pRow = (p, when, tag) => `<li class="pc-row" data-open="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(shortName(p.name))}">
-      <span class="pc-main"><span class="pc-name">${esc(p.contact_name || shortName(p.name))}</span><span class="pc-biz">${esc(shortName(p.name))}${p.town ? ` · ${esc(p.town)}` : ''}</span></span>
-      <span class="pc-meta">${when ? `<span class="pc-when">${esc(when)}</span>` : ''}${tag && tag[1] ? `<span class="pc-tag ${tag[0]}">${esc(tag[1])}</span>` : ''}</span></li>`;
-  const pipe = [
-    card('Calls scheduled', '', coming, x => pRow(x.p, callLabel(x.at), ['ok', 'Confirmed']), 'accent'),
-    card('Working with', 'Good fits for the class', working, p => pRow(p, p.called_at ? `Talked ${shortDay(p.called_at)}` : '', callTag(p))),
-    card('Talked', 'Had a call; no project yet', talked, p => pRow(p, `${shortDay(p.called_at || p.thanked_at)}`, callTag(p))),
-    card('Calls to schedule', 'You answered; their turn to pick a time', toSchedule, p => pRow(p, `Answered ${shortDay(p.answered_at || p.replied_at)}`, p.offered_slots && p.offered_slots.length ? ['', 'Times offered'] : ['', 'Waiting'])),
-    card('Later', 'They asked you to check back', later, p => pRow(p, `After ${new Date(p.snooze_until + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`, null)),
-  ].join('');
-  if (waiting.length || pipe) {
-    const days = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  const daysAgo = iso => { const d = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)); return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : `${d} days ago`; };
+  const callTag = p => !p.thanked_at ? 'Thank-you to send' : p.fit === 'pitched' ? 'Idea pitched' : 'Thanked';
+  // One calm panel, one list at a time. Replies show the next few, not the whole pile.
+  const TABS = [
+    { k: 'reply', label: 'To answer', items: waiting, note: 'Drafts are ready. Open one, check it, send it.' },
+    { k: 'calls', label: 'Calls', items: coming.map(x => x.p), note: 'Confirmed and on your calendar.' },
+    { k: 'working', label: 'Working with', items: working, note: 'Good fits for the class.' },
+    { k: 'talked', label: 'Talked', items: talked, note: 'You had a call. No project yet.' },
+    { k: 'theirs', label: 'Their move', items: toSchedule, note: 'You answered. Waiting on them to pick a time.' },
+    { k: 'later', label: 'Later', items: later, note: 'They asked you to check back.' },
+  ].filter(t => t.items.length || t.k === 'reply');
+  if (TABS.some(t => t.items.length)) {
+    if (!TABS.some(t => t.k === S.pipeTab && t.items.length)) S.pipeTab = (TABS.find(t => t.items.length) || TABS[0]).k;
+    const tab = TABS.find(t => t.k === S.pipeTab);
+    const atOf = new Map(coming.map(x => [x.p.id, x.at]));
+    const line = p => {
+      switch (tab.k) {
+        case 'reply': return [saidLine(p) ? `“${saidLine(p)}”` : '', daysAgo(p.replied_at)];
+        case 'calls': return ['Confirmed', callLabel(atOf.get(p.id))];
+        case 'working': case 'talked': return [callTag(p), `Talked ${shortDay(p.called_at || p.thanked_at)}`];
+        case 'theirs': return [p.offered_slots && p.offered_slots.length ? 'You offered times' : 'Waiting on them', `Answered ${shortDay(p.answered_at || p.replied_at)}`];
+        default: return [p.snooze_reason || 'Check back', `After ${new Date(p.snooze_until + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`];
+      }
+    };
+    const LIMIT = 3;
+    const shown = tab.k === 'reply' && !S.pipeAll ? tab.items.slice(0, LIMIT) : tab.items;
     const row = p => {
-      const d = days(p.replied_at);
-      const who = p.contact_name ? `<b>${esc(p.contact_name)}</b><span class="ib-biz"> · ${esc(shortName(p.name))}</span>` : `<b>${esc(shortName(p.name))}</b>`;
-      const said = saidLine(p);
-      return `<li class="ib-row" data-open="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(shortName(p.name))}">
-        <span class="ib-age${d >= 3 ? ' old' : ''}" title="Wrote back ${esc(when(p.replied_at))}">${d === 0 ? 'today' : d + 'd'}</span>
-        <span class="ib-main"><span class="ib-who">${who}</span>${said ? `<span class="ib-said">${esc(said)}</span>` : ''}</span>
-        <span class="ib-side">${p.reply_draft_id ? '<span class="ib-tag">Draft ready</span>' : ''}
-          <span class="btn sm solid ib-go">Reply</span>
-          ${S.readOnly ? '' : `<button class="btn sm ghost ib-done" data-handled="${esc(p.id)}" title="Take it off this list without replying">Done</button>`}</span>
+      const [sub, meta] = line(p);
+      return `<li class="cv-row" data-open="${esc(p.id)}" tabindex="0" role="button" aria-label="Open ${esc(shortName(p.name))}">
+        <span class="cv-main"><span class="cv-who"><b>${esc(p.contact_name || shortName(p.name))}</b>${p.contact_name ? `<span> · ${esc(shortName(p.name))}</span>` : ''}</span>${sub ? `<span class="cv-sub">${esc(sub)}</span>` : ''}</span>
+        <span class="cv-meta">${esc(meta || '')}</span>
+        ${tab.k === 'reply' ? `<span class="cv-act"><span class="btn sm solid">Review</span>${S.readOnly ? '' : `<button class="cv-done" data-handled="${esc(p.id)}" title="Take it off this list without replying" aria-label="Mark done">Done</button>`}</span>` : ''}
       </li>`;
     };
-    html += `<section class="inbox${waiting.length ? '' : ' calm'}">
-      <header class="ib-head"><div><span class="eyebrow">${waiting.length ? 'Needs your reply' : 'Inbox'}</span>
-        <b>${waiting.length ? `${waiting.length} ${waiting.length === 1 ? 'person is' : 'people are'} waiting on you` : 'You\'re caught up'}</b></div>
-        ${waiting.length ? '<span class="ib-hint">Oldest first. Open one to read the full email and send the drafted reply.</span>' : ''}</header>
-      ${waiting.length ? `<ul class="ib-list">${waiting.map(row).join('')}</ul>` : ''}
-    </section>${pipe ? `<div class="pipe">${pipe}</div>` : ''}`;
+    html += `<section class="cv">
+      <div class="cv-top"><b class="cv-title">Conversations</b>
+        <div class="cv-tabs" role="tablist">${TABS.map(t => `<button role="tab" aria-selected="${t.k === tab.k}" class="cv-tab${t.k === tab.k ? ' on' : ''}" data-pipetab="${t.k}">${t.label}<span class="cv-n">${t.items.length}</span></button>`).join('')}</div></div>
+      ${tab.items.length ? `<p class="cv-note">${esc(tab.note)}</p><ul class="cv-list">${shown.map(row).join('')}</ul>
+      ${tab.items.length > shown.length ? `<button class="cv-more" data-pipeall="1">Show all ${tab.items.length}</button>` : tab.k === 'reply' && S.pipeAll && tab.items.length > LIMIT ? `<button class="cv-more" data-pipeall="0">Show fewer</button>` : ''}` : `<p class="cv-empty">Nothing to answer. You're caught up.</p>`}
+    </section>`;
   }
   const queued = S.prospects.filter(p => p.status === 'queued').length;
   if (queued && !inSendWindow() && S.tab !== 'review') {
@@ -3254,6 +3276,10 @@ document.addEventListener('click', async e => {
     patch(id, { answered_at: nowIso() }, 'Marked as no reply needed').then(() => toast('Taken off the list.', { undo: () => patch(id, { answered_at: null }, 'Put back on the reply list').catch(() => {}) })).catch(err => toast(err.message, { err: true }));
     return;
   }
+  const ptab = t.closest('[data-pipetab]');
+  if (ptab) { S.pipeTab = ptab.dataset.pipetab; S.pipeAll = false; lsSet('pipe-tab', S.pipeTab); renderNotice(); return; }
+  const pall = t.closest('[data-pipeall]');
+  if (pall) { S.pipeAll = pall.dataset.pipeall === '1'; renderNotice(); return; }
   const opener = t.closest('[data-open]');
   if (opener) { openDrawer(opener.dataset.open); return; }
   const mode = t.closest('[data-rvmode]');
@@ -3305,7 +3331,7 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.drawerId) { closeDrawer(); return; }
-  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && (document.activeElement.classList.contains('ib-row') || document.activeElement.classList.contains('pc-row'))) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && (document.activeElement.classList.contains('ib-row') || document.activeElement.classList.contains('cv-row'))) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
   if (S.tab !== 'review' || S.drawerId || e.metaKey || e.ctrlKey || e.altKey) return;
   if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
   const k = e.key.toLowerCase();
