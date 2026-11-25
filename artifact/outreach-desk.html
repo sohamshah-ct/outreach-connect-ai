@@ -412,7 +412,9 @@ table.list a{color:var(--info); text-decoration:none;}
 .cv-next-t{display:flex; flex-direction:column; gap:3px; min-width:0;}
 .cv-next-t .cv-eyebrow{color:var(--ok);}
 .cv-next-t b{font-family:var(--serif); font-size:18px; font-weight:600; color:var(--ink);}
-.cv-next-t > span:last-child{font-size:13px; color:var(--muted);}
+.cv-next-t > span:nth-child(3){font-size:13px; color:var(--muted);}
+.cv-join{align-self:flex-start; margin-top:8px;}
+.cv-next.soon{border-color:var(--ok); box-shadow:0 0 0 3px var(--ok-soft), var(--shadow);}
 .cv-top{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:14px 20px 12px;}
 .cv-tabs{display:flex; gap:4px; padding:4px; border-radius:999px; background:var(--wash); overflow-x:auto; scrollbar-width:none; max-width:100%;}
 .cv-tabs::-webkit-scrollbar{display:none;}
@@ -695,6 +697,13 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
 .sess-live .empty{color:var(--muted); font-size:14.5px;}
 .sess-notes{flex:1; border:none; resize:none; padding:12px 14px; font:16px/1.6 var(--sans); background:transparent; color:var(--ink); min-height:160px;}
 .sess-notes:focus{outline:none;}
+.sess-steps{margin:0; padding:12px 14px 12px 32px; border:1px solid var(--line); border-radius:14px; background:var(--wash); display:flex; flex-direction:column; gap:8px; font-size:14px; color:var(--ink-2); line-height:1.45;}
+.sess-steps b{color:var(--ink); margin-right:4px;}
+.sess-steps .btn{margin-left:6px; vertical-align:middle;}
+.sess-dropzone{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:18px; text-align:center; color:var(--muted); border:2px dashed var(--line-strong); border-radius:12px; margin:10px;}
+.sess-dropzone p{margin:0; font-size:15px;}
+.sess-dropzone textarea{width:100%; min-height:90px; border:1px solid var(--line); border-radius:10px; padding:10px; font:14px/1.5 var(--sans); background:var(--paper); color:var(--ink); resize:vertical;}
+.sess-drop.over .sess-dropzone{border-color:var(--ok); background:var(--ok-soft);}
 .sess-help{font-size:13.5px; color:var(--muted); line-height:1.45;}
 .sess-help.warn{color:var(--warn); background:var(--warn-soft); border-radius:12px; padding:10px 12px;}
 .sess-actions{display:flex; gap:10px; flex-wrap:wrap; position:sticky; bottom:0; background:var(--paper); padding-top:6px;}
@@ -2067,6 +2076,7 @@ function renderNotice() {
         <span class="cv-main"><span class="cv-who"><b>${esc(p.contact_name || shortName(p.name))}</b>${p.contact_name ? `<span>${esc(shortName(p.name))}${p.town ? ` · ${esc(p.town)}` : ''}</span>` : p.town ? `<span>${esc(p.town)}</span>` : ''}</span>
           ${sub ? (quote ? `<span class="cv-quote">${esc(sub.replace(/^“|”$/g, ''))}</span>` : `<span class="cv-chip ${chipKind(sub)}">${esc(sub)}</span>`) : ''}</span>
         <span class="cv-meta">${esc(meta || '')}</span>
+        ${tab.k === 'calls' && isTeamsCall(p) && !S.readOnly ? `<span class="cv-act"><button class="btn sm solid" data-join-teams="${esc(p.id)}">Join on Teams</button></span>` : ''}
         ${quote ? `<span class="cv-act"><span class="btn sm solid">Review</span>${S.readOnly ? '' : `<button class="cv-done" data-handled="${esc(p.id)}" title="Take it off this list without replying" aria-label="Mark done">Done</button>`}</span>` : ''}
       </li>`;
     };
@@ -2085,10 +2095,11 @@ function renderNotice() {
         <h2 class="cv-h">${esc(headline.charAt(0).toUpperCase() + headline.slice(1))}.</h2>
         <div class="cv-steps">${step(everReplied, 'wrote back', everReplied, 'reply')}${step(everTalked, 'talked', everReplied, 'talked')}${step(nWorking, 'working with', everReplied, 'working')}</div>
       </div>
-      ${next ? (() => { const x = nyParts(next.at); return `<button class="cv-next" data-open="${esc(next.p.id)}">
+      ${next ? (() => { const x = nyParts(next.at); const soon = next.at.getTime() - Date.now() < 30 * 60000; return `<div class="cv-next${soon ? ' soon' : ''}" data-open="${esc(next.p.id)}" role="button" tabindex="0">
         <span class="cv-date"><small>${esc(x.wd)}</small><b>${esc(x.d)}</b><small>${esc(x.mo)}</small></span>
-        <span class="cv-next-t"><span class="cv-eyebrow">Next call · ${esc(rel(next.at))}</span><b>${esc(next.p.contact_name || shortName(next.p.name))}</b><span>${esc(shortName(next.p.name))} · ${esc(x.t)}${next.p.invite && next.p.invite.uid ? ' · Teams' : ''}</span></span>
-      </button>`; })() : ''}
+        <span class="cv-next-t"><span class="cv-eyebrow">Next call · ${esc(rel(next.at))}</span><b>${esc(next.p.contact_name || shortName(next.p.name))}</b><span>${esc(shortName(next.p.name))} · ${esc(x.t)}${isTeamsCall(next.p) ? ' · Teams' : ''}</span>
+          ${isTeamsCall(next.p) && !S.readOnly ? `<button class="btn ${soon ? 'solid' : ''} sm cv-join" data-join-teams="${esc(next.p.id)}">${soon ? 'Join now' : 'Join on Teams'}</button>` : ''}</span>
+      </div>`; })() : ''}
     </div>`;
     const dotOf = { reply: 'var(--crimson)', calls: 'var(--ok)', working: 'var(--navy)', talked: 'var(--info)', theirs: 'var(--muted)', later: 'var(--line-strong)' };
     html += `<section class="cv">
@@ -3367,6 +3378,8 @@ document.addEventListener('click', async e => {
   if (gd) { const p = S.prospects.find(x => x.id === gd.dataset.gdraft); if (p) sendReadyReply(p).catch(err => toast(err && err.code ? mcpMessage(err, GMAIL) : err.message, { err: true })); return; }
   const bw = t.closest('[data-boardwho]');
   if (bw) { S.boardWho = bw.dataset.boardwho; renderView(); return; }
+  const jt = t.closest('[data-join-teams]');
+  if (jt) { e.preventDefault(); e.stopPropagation(); joinTeams(jt.dataset.joinTeams); return; }
   const goCall = t.closest('[data-call-go]');
   if (goCall) { startCallFor(goCall.dataset.callGo); return; }
   const callBtn = t.closest('[data-open-call]');
@@ -3432,7 +3445,7 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.drawerId) { closeDrawer(); return; }
-  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && (document.activeElement.classList.contains('ib-row') || document.activeElement.classList.contains('cv-row'))) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && (document.activeElement.classList.contains('ib-row') || document.activeElement.classList.contains('cv-row') || document.activeElement.classList.contains('cv-next'))) { e.preventDefault(); openDrawer(document.activeElement.dataset.open); return; }
   if (S.tab !== 'review' || S.drawerId || e.metaKey || e.ctrlKey || e.altKey) return;
   if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) return;
   const k = e.key.toLowerCase();
@@ -3525,6 +3538,54 @@ function nextCall() {
     .sort((a, b) => a.at - b.at);
   return list[0] || null;
 }
+// ---------- Teams calls: one click to join, Teams' own transcript for the notes ----------
+// With headphones on, a mic only hears one side. Teams transcribes both sides with names and
+// tells everyone it's on, so the desk uses that transcript instead of listening itself.
+const teamsLink = () => { const u = String(settings().teams_link || '').trim(); return !u ? '' : /^https?:\/\//i.test(u) ? u : 'https://' + u; };
+const isTeamsCall = p => { if (!teamsLink()) return false; const how = String(p.call_how || p.call_where || (p.invite && p.invite.where) || ''); return /teams/i.test(how) || (!how && !p.phone); };
+function joinTeams(pid) {
+  const p = S.prospects.find(x => x.id === pid); if (!p) return;
+  const url = teamsLink(); if (!url) { toast('Add your Teams link in Settings first.', { err: true }); return; }
+  const w = window.open(url, '_blank', 'noopener');
+  openSession(targetFromProspect(p));
+  if (!SES || SES.picking) return;
+  SES.teams = true; SES.kind = 'call'; SES.teamsOpened = !!w;
+  sesBegin(); renderSes(); sesSave();
+  if (!w) toast('Your browser blocked the new tab. Use the Open Teams button on the call screen.');
+}
+// A Teams transcript (.vtt download, or text copied from the Transcript pane) → "Name: words" lines.
+function parseTeamsTranscript(raw) {
+  const txt = String(raw || '').replace(/\r/g, '');
+  const out = [];
+  const push = (who, text) => { text = String(text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); if (!text) return; who = String(who || '').trim(); const last = out[out.length - 1]; if (last && last.who === who) last.text += ' ' + text; else out.push({ who, text }); };
+  if (/^WEBVTT/.test(txt.trim())) {
+    for (const block of txt.split(/\n\s*\n/)) {
+      const lines = block.split('\n').filter(l => l.trim() && !/-->/.test(l) && !/^WEBVTT/.test(l) && !/^[0-9a-f-]{8,}(\/\d+-\d+)?$/i.test(l.trim()) && !/^\d+$/.test(l.trim()));
+      for (const l of lines) { const m = /<v ([^>]+)>([\s\S]*?)(<\/v>|$)/.exec(l); if (m) push(m[1], m[2]); else push('', l); }
+    }
+  } else {
+    // Copied from Teams: "Name   0:05" (or "Name 12:03 PM") on one line, what they said on the next.
+    let who = '';
+    for (const l of txt.split('\n')) {
+      const s = l.trim(); if (!s) continue;
+      const m = /^(.{2,60}?)\s{1,}(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)$/i.exec(s);
+      if (m) { who = m[1].trim(); continue; }
+      const c = /^([A-Z][^:]{1,40}):\s+(.+)$/.exec(s);
+      if (c) push(c[1], c[2]); else push(who, s);
+    }
+  }
+  return out;
+}
+function importTeamsTranscript(raw) {
+  const lines = parseTeamsTranscript(raw);
+  if (!lines.length) { toast("That didn't look like a transcript. Try the .vtt download from Teams, or paste the text.", { err: true }); return; }
+  SES.segs = null;
+  SES.finals = lines.map(l => (l.who ? `${l.who}: ` : '') + l.text);
+  SES.teamsLines = lines; SES.teamsImported = nowIso();
+  if (!SES.started) sesBegin();
+  renderSes(); sesSave();
+  toast(`Transcript added: ${lines.length} parts, ${new Set(lines.map(l => l.who).filter(Boolean)).size || 'no'} speakers named.`);
+}
 function renderCallBar() {
   const bar = $('#callBar'); if (!bar) return;
   const c = S.readOnly ? null : nextCall();
@@ -3538,7 +3599,7 @@ function renderCallBar() {
   bar.hidden = false;
   bar.innerHTML = `<span class="when">${esc(when)}</span>
     <span class="who">${esc(p.contact_name || shortName(p.name))}, ${esc(shortName(p.name))}<small>${esc([p.call_note || p.call_how || '', p.phone ? 'Phone ' + p.phone : ''].filter(Boolean).join(' · '))}</small></span>
-    <button class="btn" data-call-go="${esc(p.id)}" title="Opens the recorder for this call and starts recording">I'm on the call · they're OK with recording</button>`;
+    ${isTeamsCall(p) ? `<button class="btn solid" data-join-teams="${esc(p.id)}" title="Opens Teams and the call screen together">Join on Teams</button>` : `<button class="btn" data-call-go="${esc(p.id)}" title="Opens the recorder for this call and starts recording">I'm on the call · they're OK with recording</button>`}`;
 }
 function startCallFor(pid) {
   const p = S.prospects.find(x => x.id === pid); if (!p) return;
@@ -3631,7 +3692,13 @@ function renderSes() {
   const t = SES.target;
   if (SES.out) { renderSesOut(root); return; }
   const transcript = SES.finals.join(' ');
-  const micNote = SES.external
+  const teamsSteps = SES.teams ? `<ol class="sess-steps">
+      <li><b>Join</b>${SES.teamsOpened ? ' Teams opened in a new tab.' : ''} <a class="btn sm" href="${esc(teamsLink())}" target="_blank" rel="noopener">Open Teams</a></li>
+      <li><b>Turn on the transcript</b> once they've said it's OK to record: in the Teams meeting, More (…) → Record and transcribe → Start transcription. Teams tells everyone it's on.</li>
+      <li><b>After the call</b>, in the meeting chat open the transcript and download it as .vtt (or copy all the text). Drop it here, then tap End call.</li></ol>` : '';
+  const teamsBox = SES.teams ? `<div class="sess-box sess-drop" id="sessDrop"><div class="eyebrow"><span>Teams transcript</span><span>${SES.teamsImported ? (SES.teamsLines || []).length + ' parts' : ''}</span></div>
+      ${SES.teamsImported ? sesLinesHtml((SES.teamsLines || []).map(l => ({ who: l.who, text: l.text }))) : `<div class="sess-dropzone"><p>Drop the .vtt file here</p><label class="btn sm">Choose file<input type="file" id="sessTxFile" accept=".vtt,.txt,text/vtt,text/plain" hidden></label><textarea id="sessTxPaste" placeholder="…or paste the transcript text here"></textarea></div>`}</div>` : '';
+  const micNote = SES.teams ? teamsSteps : SES.external
     ? `<div class="sess-help">Recording in the other tab. Keep it open; tap End there when you're done and the summary shows up here by itself. What's said also shows up below as it's written down.</div>`
     : `<div class="sess-help">Tap Record once they've said OK. It opens the recorder in a new tab (claude.ai doesn't let this page use the mic itself); when you tap End there, everything comes back here and gets done for you.</div>`;
   const micNoteOld = SES.mic === 'blocked'
@@ -3644,23 +3711,33 @@ function renderSes() {
       <div class="who">${[t.name ? esc(t.name) : null, t.phone ? `<a href="tel:${esc(String(t.phone).replace(/[^0-9+]/g, ''))}">${esc(t.phone)}</a>` : null].filter(Boolean).join(' · ')}</div></div>
       <button class="sess-x" data-ses="close" aria-label="Close">✕</button></div>
     <div class="sess-bar"><span class="sess-clock" id="sessClock">${fmtClock(sesElapsed())}</span>
-      <span class="sess-pill ${SES.listening || SES.external ? 'live' : ''}" id="sessPill"><i></i>${SES.external ? 'Recording in the other tab' : SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}</span>
+      <span class="sess-pill ${SES.listening || SES.external || (SES.teams && !SES.teamsImported) ? 'live' : ''}" id="sessPill"><i></i>${SES.teams ? (SES.teamsImported ? 'Transcript added' : 'On Teams') : SES.external ? 'Recording in the other tab' : SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}</span>
       <span class="sess-kind" role="group" aria-label="Call or meeting"><button data-ses-kind="call" aria-pressed="${SES.kind === 'call'}">Call</button><button data-ses-kind="meeting" aria-pressed="${SES.kind === 'meeting'}">Meeting</button></span></div>
     <label class="sess-consent ${SES.consent ? 'ok' : ''}"><input type="checkbox" id="sessConsent" ${SES.consent ? 'checked' : ''}> <span>${esc(t.name ? t.name.split(' ')[0] : 'They')} said it's OK to record. <span style="color:var(--muted)">(Connecticut requires their OK before recording a phone call. Ask first.)</span></span></label>
     ${micNote}
     <div class="sess-main">
-      <div class="sess-box"><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
+      ${SES.teams ? teamsBox : ''}<div class="sess-box" ${SES.teams ? 'style="display:none"' : ''}><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
         <div class="sess-suggest" id="sessSuggest" ${SES.suggest && SES.suggest.length ? '' : 'hidden'}>${SES.suggest && SES.suggest.length ? `<div class="eyebrow">Questions to ask next</div><ol>${SES.suggest.map(q => `<li>${esc(q)}</li>`).join('')}</ol>` : ''}</div>
         <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : '<span class="empty">Tap Record once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>'}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
       <div class="sess-box"><div class="eyebrow"><span>Your notes</span></div>
         <textarea class="sess-notes" id="sessNotes" placeholder="Anything worth remembering: team size, what eats their time, what they asked you, what you promised to send…">${esc(SES.notes)}</textarea></div>
     </div>
     <div class="sess-actions">
-      <button class="btn rec" data-ses="record">● ${SES.external ? 'Reopen the recorder' : 'Record'}</button>
+      ${SES.teams ? '' : `<button class="btn rec" data-ses="record">● ${SES.external ? 'Reopen the recorder' : 'Record'}</button>`}
       <button class="btn end" data-ses="end">${SES.ending ? 'Tap again to end and summarize' : `End ${SES.kind === 'meeting' ? 'meeting' : 'call'}`}</button>
     </div>
     ${SES.started ? `<button class="btn ghost sm" data-ses="discard" style="align-self:center">${SES.discarding ? 'Tap again to throw this session away' : 'Discard this session'}</button>` : ''}`;
   $('#sessNotes').addEventListener('input', e => { SES.notes = e.target.value; if (!SES.started) sesBegin(); sesSave(); });
+  if (SES.teams && !SES.teamsImported) {
+    const drop = $('#sessDrop'), file = $('#sessTxFile'), paste = $('#sessTxPaste');
+    const readFile = fl => { if (!fl) return; if (/\.docx$/i.test(fl.name)) { toast('Pick the .vtt download in Teams (the Word file can\'t be read here).', { err: true }); return; } fl.text().then(importTeamsTranscript); };
+    file.addEventListener('change', () => readFile(file.files[0]));
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); readFile(e.dataTransfer.files[0]); });
+    paste.addEventListener('paste', () => setTimeout(() => { if (paste.value.trim().length > 40) importTeamsTranscript(paste.value); }, 0));
+    paste.addEventListener('change', () => { if (paste.value.trim()) importTeamsTranscript(paste.value); });
+  }
   $('#sessConsent').addEventListener('change', e => { SES.consent = e.target.checked; if (!SES.consent) stopListening(); renderSes(); sesSave(); });
   const live = $('#sessLive'); live.scrollTop = live.scrollHeight;
 }
@@ -3673,7 +3750,7 @@ function paintLive() {
   live.scrollTop = live.scrollHeight;
 }
 function paintPill() {
-  const pill = $('#sessPill'); if (!pill || !SES) return;
+  const pill = $('#sessPill'); if (!pill || !SES || SES.teams) return;
   pill.className = 'sess-pill' + (SES.listening ? ' live' : '');
   pill.innerHTML = `<i></i>${SES.listening ? 'Listening' : SES.started ? 'Paused' : 'Not started'}`;
 }
@@ -3726,7 +3803,7 @@ function stopListening() {
 
 async function endSession() {
   stopListening();
-  const transcript = SES.finals.join(' ').trim();
+  const transcript = SES.finals.join(SES.teamsImported ? '\n' : ' ').trim();
   const notes = String(SES.notes || '').trim();
   if (!transcript && !notes) { toast('Nothing to summarize yet: start listening or write a few notes first.', { err: true }); renderSes(); return; }
   if (SES.runningSince) { SES.elapsedMs += Date.now() - SES.runningSince; SES.runningSince = null; }
@@ -3744,7 +3821,7 @@ async function endSession() {
   const prompt = [
     `You help ${me().name || 'a UConn student'} (${me().majorCap || 'student'} at UConn) after a ${SES.kind} with a small-business owner. He reached out to learn how they started and run their business; he's also in a UConn class, Connect.AI, where students build small tools for local businesses as the class project, for class credit (never say free). The owner already knows he's in a class.`,
     `Business: ${t.business}${t.town ? ' (' + t.town + ')' : ''}. Person: ${t.name || 'the owner'}. Length: ${fmtClock(SES.elapsedMs)}. Today: ${today}.`,
-    `TRANSCRIPT (from the browser's speech-to-text, one line per stretch of speech; it can mishear words, so never treat a garbled phrase as a fact${two ? '. The voice numbers come from the sound and are usually right: one voice is him, the other is them' : ''}):\n${voiced || '(none)'}`,
+    `TRANSCRIPT (${SES.teamsImported ? 'from Microsoft Teams, one line per speaker turn, with names; machine transcribed, so it can still mishear a word' : "from the browser's speech-to-text, one line per stretch of speech; it can mishear words"}, so never treat a garbled phrase as a fact${two ? '. The voice numbers come from the sound and are usually right: one voice is him, the other is them' : ''}):\n${voiced || '(none)'}`,
     `HIS NOTES (more reliable than the transcript):\n${notes || '(none)'}`,
     'Write in plain, normal words, like a person, no hype and no filler. Use ONLY what is in the transcript and notes; never invent numbers, names or promises. If something is unclear, leave it out.',
     'Return JSON with exactly these keys:',
@@ -3946,7 +4023,7 @@ async function sesSwapNames() {
 function sesLinesHtml(lines, t) {
   if (!lines || !lines.length) return '';
   const a = sesMe();
-  return `<div class="sess-lines">${lines.map(l => `<div class="ln ${l.who === a || l.who === 'Voice 1' ? 'me' : l.who ? 'them' : ''}"><span class="who">${esc(l.who || '')}</span><span>${esc(l.text)}</span></div>`).join('')}</div>`;
+  return `<div class="sess-lines">${lines.map(l => `<div class="ln ${l.who === a || l.who === 'Voice 1' || (a && a !== 'Me' && String(l.who || '').toLowerCase().split(/[\s,]+/).includes(a.toLowerCase())) ? 'me' : l.who ? 'them' : ''}"><span class="who">${esc(l.who || '')}</span><span>${esc(l.text)}</span></div>`).join('')}</div>`;
 }
 
 function renderSesOut(root) {
