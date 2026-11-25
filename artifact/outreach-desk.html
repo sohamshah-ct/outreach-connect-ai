@@ -690,10 +690,11 @@ h1,h2,h3{font-weight:600; letter-spacing:-.01em;}
 .tw-name{grid-area:n; font-size:14.5px; font-weight:600;}
 .tw-rate{grid-area:r; font:600 14px var(--mono); color:#FF9A86; font-variant-numeric:tabular-nums;}
 .tw-bar{grid-area:b; height:4px; border-radius:4px; background:rgba(255,255,255,.07); overflow:hidden;}
-.tw-bar i{display:block; height:100%; border-radius:4px; background:#FF7A66;}
+.tw-bar i{display:block; height:100%; border-radius:4px; background:linear-gradient(90deg, rgba(255,122,102,.55), #FF7A66);}
 .tw-sub{grid-area:s; font-size:12px; color:#8FB3CF;}
-.state-list{max-height:430px; overflow:auto;}
-.lg-bub{background:transparent; border:1.5px solid #FF9A86;} .lg-rate{background:#FF7A66;} .lg-call{background:#6FDCA0;}
+.tw-more{border:1px solid rgba(120,210,230,.25); background:transparent; color:#CFE0F5; border-radius:999px; padding:7px 12px; font:600 12.5px var(--sans); cursor:pointer;}
+.tw-more:hover{border-color:rgba(60,224,240,.6);}
+.lg-bub{background:transparent; border:1.5px solid rgba(120,210,230,.8);} .lg-rate{background:#FF7A66; border-radius:3px !important; height:4px !important;}
 .lg-ready{background:#F4F7FB;} .lg-sent{background:#3CE0F0;} .lg-reply{background:#FF7A66;} .lg-check{background:#F2C766;} .lg-other{background:#5F7396;}
 .map-side .live{color:#8FB3CF;}
 .hero-status{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
@@ -884,7 +885,7 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
         <div class="eyebrow" id="mapHead">Businesses by state · click to filter</div>
         <div class="map-insight" id="mapInsight" hidden></div>
         <div class="state-list" id="stateList"></div>
-        <div class="radar-legend tw-legend" id="townLegend" style="display:none"><span><i class="lg-bub"></i>Bigger = more businesses</span><span><i class="lg-rate"></i>Brighter = more wrote back</span><span><i class="lg-call"></i>Calls you've had</span></div>
+        <div class="radar-legend tw-legend" id="townLegend" style="display:none"><span><i class="lg-bub"></i>Ring size = businesses found</span><span><i class="lg-rate"></i>Coral arc = share that wrote back</span></div>
         <div class="radar-legend" id="radarLegend">
           <span><i class="lg-ready"></i>Ready to review</span>
           <span><i class="lg-sent"></i>Emailed</span>
@@ -3444,7 +3445,9 @@ function townsSide() {
       <span class="tw-rate">${t.emailed ? Math.round(t.rate * 100) + '%' : '·'}</span>
       <span class="tw-bar"><i style="width:${Math.round(Math.min(1, t.rate / 0.15) * 100)}%"></i></span>
       <span class="tw-sub">${t.emailed ? `${t.replied} of ${t.emailed} wrote back` : 'Not emailed yet'}${t.ready ? ` · ${t.ready} ready` : ''}${t.talked ? ` · ${t.talked} call${t.talked === 1 ? '' : 's'}` : ''}</span></button>`;
-  return [...ranked, ...rest].map(row).join('');
+  const all = [...ranked, ...rest];
+  const shown = R_STATE.allTowns ? all : all.slice(0, 6);
+  return shown.map(row).join('') + (all.length > 6 ? `<button class="tw-more" data-alltowns="1">${R_STATE.allTowns ? 'Show fewer' : `All ${all.length} towns`}</button>` : '');
 }
 function townLayout(w, h) {
   const ts = R_STATE.towns || [];
@@ -3469,31 +3472,52 @@ function drawTowns(cv, ctx, w, h, dpr) {
   const inv = (x, y) => [L.X(x / (NE_MAP.k * NE_MAP.scale) + NE_MAP.W), L.Y(NE_MAP.N - y / NE_MAP.scale)];
   ctx.beginPath();
   for (const r of (NE_MAP.states.CT || [])) { let [a, b] = inv(r[0], r[1]); ctx.moveTo(a, b); for (let i = 2; i < r.length; i += 2) { [a, b] = inv(r[i], r[i + 1]); ctx.lineTo(a, b); } ctx.closePath(); }
-  ctx.fillStyle = 'rgba(60,224,240,.04)'; ctx.fill(); ctx.strokeStyle = 'rgba(120,210,230,.35)'; ctx.stroke();
+  // (Connecticut's border isn't drawn here: at this zoom only a stray edge of it shows.)
   const ux = L.X(-72.2495), uy = L.Y(41.8084);
   ctx.strokeStyle = '#3CE0F0'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ux, uy, 5, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = 'rgba(60,224,240,.8)'; ctx.font = '600 11px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('UConn', ux + 8, uy - 8);
-  const unit = Math.max(1.6, Math.min(w, h) / 230);
+  // Each town: a thin ring (size = how many businesses), a coral arc around it (share that wrote back),
+  // and a small label beside it. Labels move to the other side if they'd overlap.
+  const unit = Math.min(w, h) / 520;
   const ts = [...(R_STATE.towns || [])].sort((a, b) => b.found - a.found);
+  const placed = [];
+  ctx.textBaseline = 'middle';
   for (const t of ts) {
     const x = L.X(t.ll[1]), y = L.Y(t.ll[0]);
-    const r = 7 + Math.sqrt(t.found) * unit;
-    t.sx = x; t.sy = y; t.r = r;
-    const k = t.emailed ? Math.min(1, t.rate / 0.15) : 0;
+    const r = Math.max(6, Math.min(24, (5 + Math.sqrt(t.found) * 1.15) * Math.max(.8, unit)));
+    t.sx = x; t.sy = y; t.r = Math.max(r, 12);
     const on = S.town === t.label, hov = R_STATE.hover === t;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = t.emailed ? `rgba(255,122,102,${.14 + .62 * k})` : 'rgba(143,179,207,.10)';
-    ctx.fill();
-    ctx.lineWidth = on || hov ? 2.5 : 1.2;
-    ctx.setLineDash(t.emailed ? [] : [4, 4]);
-    ctx.strokeStyle = on ? '#3CE0F0' : hov ? '#EEF5FF' : t.emailed ? `rgba(255,150,130,${.45 + .5 * k})` : 'rgba(143,179,207,.55)';
-    ctx.stroke(); ctx.setLineDash([]);
-    if (t.talked) { ctx.fillStyle = '#6FDCA0'; ctx.beginPath(); ctx.arc(x + r * .72, y - r * .72, 4 + Math.min(4, t.talked), 0, Math.PI * 2); ctx.fill(); }
-    ctx.textAlign = 'center'; ctx.fillStyle = '#EEF5FF'; ctx.font = '600 12.5px "Atkinson Hyperlegible", system-ui, sans-serif';
-    ctx.fillText(t.name, x, y - 1);
-    ctx.fillStyle = 'rgba(207,224,245,.8)'; ctx.font = '500 11px "JetBrains Mono", monospace';
-    ctx.fillText(t.emailed ? `${Math.round(t.rate * 100)}% · ${t.found}` : `${t.found} found`, x, y + 13);
+    // soft glow + ring
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.9);
+    g.addColorStop(0, `rgba(60,224,240,${on || hov ? .22 : .10})`); g.addColorStop(1, 'rgba(60,224,240,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = on || hov ? 2 : 1.25;
+    ctx.setLineDash(t.emailed ? [] : [3, 4]);
+    ctx.strokeStyle = on ? '#3CE0F0' : hov ? 'rgba(238,245,255,.9)' : 'rgba(120,210,230,.55)';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    if (t.emailed && t.rate > 0) {
+      ctx.strokeStyle = '#FF7A66'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, t.rate / 0.3)); ctx.stroke(); ctx.lineCap = 'butt';
+    }
+    ctx.fillStyle = on ? '#3CE0F0' : 'rgba(238,245,255,.85)'; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+    // label beside the ring
+    ctx.font = '600 12.5px "Atkinson Hyperlegible", system-ui, sans-serif';
+    const sub = t.emailed ? `${Math.round(t.rate * 100)}% wrote back` : 'not emailed yet';
+    ctx.font = '500 10.5px "JetBrains Mono", monospace'; const ws = ctx.measureText(sub).width;
+    ctx.font = '600 12.5px "Atkinson Hyperlegible", system-ui, sans-serif'; const wn = ctx.measureText(t.name).width;
+    const lw = Math.max(wn, ws), lh = 30;
+    let lx = x + r + 10, align = 'left';
+    const box = (bx) => ({ x0: bx, x1: bx + lw, y0: y - lh / 2, y1: y + lh / 2 });
+    const hits = bb => placed.some(p => bb.x0 < p.x1 && bb.x1 > p.x0 && bb.y0 < p.y1 && bb.y1 > p.y0) || bb.x1 > w - 4;
+    let bb = box(lx);
+    if (hits(bb)) { const alt = box(x - r - 10 - lw); if (!hits(alt) && alt.x0 > 4) { bb = alt; lx = x - r - 10; align = 'right'; } }
+    placed.push(bb, { x0: x - r - 6, x1: x + r + 6, y0: y - r - 6, y1: y + r + 6 });
+    ctx.textAlign = align;
+    ctx.fillStyle = on || hov ? '#FFFFFF' : 'rgba(238,245,255,.92)'; ctx.fillText(t.name, lx, y - 7);
+    ctx.font = '500 10.5px "JetBrains Mono", monospace';
+    ctx.fillStyle = t.emailed && t.rate > 0 ? 'rgba(255,154,134,.95)' : 'rgba(143,179,207,.8)'; ctx.fillText(sub, lx, y + 8);
   }
+  ctx.textBaseline = 'alphabetic';
 }
 function setTownFilter(label) {
   S.town = S.town === label ? '' : label; S.state = '';
@@ -3628,7 +3652,7 @@ function radarInit() {
   });
   cv.addEventListener('mouseleave', () => { R_STATE.hover = null; tip.hidden = true; });
   cv.addEventListener('click', e => { const best = radarHit(e); if (!best) return; if (R_STATE.mode === 'towns') setTownFilter(best.label); else openDrawer(best.p.id); });
-  document.getElementById('stateList').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b) { setStateFilter(b.dataset.st); return; } const t = e.target.closest('[data-town]'); if (t) setTownFilter(t.dataset.town); });
+  document.getElementById('stateList').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b) { setStateFilter(b.dataset.st); return; } const t = e.target.closest('[data-town]'); if (t) { setTownFilter(t.dataset.town); return; } if (e.target.closest('[data-alltowns]')) { R_STATE.allTowns = !R_STATE.allTowns; R_STATE.sig = ''; radarData(); } });
   document.getElementById('mapMode').addEventListener('click', e => { const b = e.target.closest('[data-mapmode]'); if (b) setMapMode(b.dataset.mapmode); });
   if ('IntersectionObserver' in window) new IntersectionObserver(es => { R_STATE.visible = es[es.length - 1].isIntersecting; if (R_STATE.visible) mapStart(); else mapStop(); }, { rootMargin: '80px' }).observe(cv);
   document.addEventListener('visibilitychange', () => { if (document.hidden) mapStop(); else mapStart(); });
