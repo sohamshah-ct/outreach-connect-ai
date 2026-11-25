@@ -409,6 +409,34 @@ table.list a{color:var(--info); text-decoration:none;}
 .cv-story-who{font-size:13px; color:var(--muted);}
 .cv-story-r{white-space:nowrap; font-size:13px; font-weight:600; color:var(--ink-2);}
 @media (max-width:760px){ .cv-story{flex-direction:column; align-items:flex-start; padding:16px 18px;} .cv-story q{font-size:17px;} .cv-cta{width:100%; justify-content:space-between;} }
+
+/* Motion */
+@keyframes riseIn{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+@keyframes fadeIn{from{opacity:0} to{opacity:1}}
+@keyframes barFill{from{width:0}}
+@keyframes popIn{from{opacity:0; transform:scale(.96) translateY(8px)} to{opacity:1; transform:none}}
+@keyframes softPulse{0%,100%{box-shadow:0 0 0 3px var(--ok-soft), var(--shadow)} 50%{box-shadow:0 0 0 9px color-mix(in srgb, var(--ok) 12%, transparent), var(--shadow)}}
+body.first-paint .cv-hero-l > *{animation:riseIn .55s cubic-bezier(.2,.7,.2,1) both;}
+body.first-paint .cv-hero-l > *:nth-child(2){animation-delay:.06s} body.first-paint .cv-hero-l > *:nth-child(3){animation-delay:.12s} body.first-paint .cv-hero-l > *:nth-child(4){animation-delay:.18s}
+body.first-paint .cv-next{animation:riseIn .6s .15s cubic-bezier(.2,.7,.2,1) both;}
+body.first-paint .cv-story{animation:fadeIn .7s .25s both;}
+body.first-paint .cv-step i::after{animation:barFill 1s .2s cubic-bezier(.2,.7,.2,1) both;}
+body.first-paint .cv-list .cv-row{animation:riseIn .45s cubic-bezier(.2,.7,.2,1) both;}
+.cv-list.enter .cv-row{animation:riseIn .38s cubic-bezier(.2,.7,.2,1) both;}
+.cv-list .cv-row:nth-child(2){animation-delay:.05s} .cv-list .cv-row:nth-child(3){animation-delay:.1s} .cv-list .cv-row:nth-child(4){animation-delay:.15s} .cv-list .cv-row:nth-child(5){animation-delay:.2s} .cv-list .cv-row:nth-child(n+6){animation-delay:.24s}
+.st-wall.enter .st-card{animation:riseIn .5s cubic-bezier(.2,.7,.2,1) both;}
+.st-wall.enter .st-card:nth-child(2){animation-delay:.06s} .st-wall.enter .st-card:nth-child(3){animation-delay:.12s} .st-wall.enter .st-card:nth-child(4){animation-delay:.18s} .st-wall.enter .st-card:nth-child(5){animation-delay:.24s} .st-wall.enter .st-card:nth-child(n+6){animation-delay:.3s}
+.cv-story-l{transition:opacity .38s ease, transform .38s ease;}
+.cv-story-l.out{opacity:0; transform:translateY(6px);}
+.cv-next.soon{animation:softPulse 2.4s ease-in-out infinite;}
+.sw-card{animation:popIn .32s cubic-bezier(.2,.7,.2,1) both;}
+.sw-card.drag,.sw-card.fly{animation:none;}
+.cv-cta-n{animation:popIn .5s .5s both;}
+.confetti{position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:90;}
+@media (prefers-reduced-motion: reduce){
+  body.first-paint *, .cv-list.enter .cv-row, .st-wall.enter .st-card, .cv-next.soon, .sw-card, .cv-cta-n{animation:none !important;}
+  .cv-story-l{transition:none;}
+}
 /* Stories wall */
 .st-intro{margin:6px 0 16px;}
 .st-intro h2{margin:0; font-family:var(--serif); font-size:26px; color:var(--ink);}
@@ -2169,7 +2197,7 @@ function renderNotice() {
     const rel = at => { const d = Math.round((new Date(at.toDateString()) - new Date(new Date().toDateString())) / 86400000); return d <= 0 ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`; };
     const nyParts = at => { const o = { timeZone: 'America/New_York' }; return { wd: at.toLocaleDateString(undefined, { ...o, weekday: 'short' }), mo: at.toLocaleDateString(undefined, { ...o, month: 'short' }), d: at.toLocaleDateString(undefined, { ...o, day: 'numeric' }), t: at.toLocaleTimeString(undefined, { ...o, hour: 'numeric', minute: '2-digit' }) }; };
     const headline = [coming.length ? `${coming.length} call${coming.length === 1 ? '' : 's'} on the calendar` : '', waiting.length ? `${waiting.length} repl${waiting.length === 1 ? 'y' : 'ies'} to review` : 'nothing to answer'].filter(Boolean).join(', ');
-    const step = (n, label, of, k) => `<button class="cv-step" data-pipetab="${k}"><b>${n}</b><span>${label}</span><i style="--w:${of ? Math.max(6, Math.round(100 * n / of)) : 0}%"></i></button>`;
+    const step = (n, label, of, k) => `<button class="cv-step" data-pipetab="${k}"><b data-count="${n}">${n}</b><span>${label}</span><i style="--w:${of ? Math.max(6, Math.round(100 * n / of)) : 0}%"></i></button>`;
     const hero = `<div class="cv-hero">
       <div class="cv-hero-l">
         <span class="cv-eyebrow">${esc(new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))}</span>
@@ -2189,7 +2217,7 @@ function renderNotice() {
       <div class="cv-top">
         <div class="cv-tabs" role="tablist">${TABS.map(t => `<button role="tab" aria-selected="${t.k === tab.k}" class="cv-tab${t.k === tab.k ? ' on' : ''}" data-pipetab="${t.k}"><i style="background:${dotOf[t.k]}"></i>${t.label}<span class="cv-n">${t.items.length}</span></button>`).join('')}</div>
         ${tab.k === 'reply' && tab.items.length && !S.readOnly ? `<button class="btn solid sm cv-quick" data-swopen="1">Quick review</button>` : tab.items.length ? `<span class="cv-note">${esc(tab.note)}</span>` : ''}</div>
-      ${tab.items.length ? `<ul class="cv-list">${shown.map(row).join('')}</ul>
+      ${tab.items.length ? `<ul class="cv-list${ANIM.list ? ' enter' : ''}">${shown.map(row).join('')}</ul>
       ${tab.items.length > shown.length ? `<button class="cv-more" data-pipeall="1">Show all ${tab.items.length}</button>` : tab.k === 'reply' && S.pipeAll && tab.items.length > LIMIT ? `<button class="cv-more" data-pipeall="0">Show fewer</button>` : ''}` : `<p class="cv-empty">Nothing to answer. You're caught up.</p>`}
     </section>`;
   }
@@ -2203,7 +2231,8 @@ function renderNotice() {
   } else if (S.loaded && !S.prospects.length && !S.meta.progress) {
     html += `<div class="banner"><div><b>No businesses researched yet.</b><p>Claude fills this in: it finds small businesses near Storrs, reads their websites for the owner and an email address, and writes each one a draft. They'll show up here under Review. Your class CRM is already connected; see the My CRM tab.${S.meta.blocked ? ` <br><br>${esc(S.meta.blocked)}` : ''}</p></div></div>`;
   }
-  setHTML($('#notice'), html);
+  const changedNotice = setHTML($('#notice'), html);
+  if (changedNotice && ANIM.first && S.loaded && $('#notice .cv')) { ANIM.first = false; document.body.classList.add('first-paint'); countUp($('#notice')); setTimeout(() => document.body.classList.remove('first-paint'), 1600); }
 }
 
 // Opens come from the open tracker via the sync job (scripts/outreach-opens.js),
@@ -2279,13 +2308,63 @@ function renderChart() {
 }
 
 
+
+// ---------- Motion: small, smooth touches (transforms and opacity only; off with reduced motion) ----------
+const ANIM = { list: false, view: false, first: true, rot: null };
+const REDUCED = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Numbers in the header count up the first time the desk opens.
+function countUp(root) {
+  if (REDUCED()) return;
+  root.querySelectorAll('[data-count]').forEach(el => {
+    const to = Number(el.dataset.count) || 0; if (!to) return;
+    const t0 = performance.now(), dur = 900;
+    const tick = t => { const k = Math.min(1, (t - t0) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); };
+    el.textContent = '0'; requestAnimationFrame(tick);
+  });
+}
+// The lesson at the top of the desk cycles through all of them, pausing while you hover.
+function storyRotateStart() {
+  if (ANIM.rot || REDUCED()) return;
+  ANIM.rot = setInterval(() => {
+    const el = document.getElementById('cvStory');
+    if (!el || el.matches(':hover') || document.hidden) return;
+    const items = storyItems().filter(x => x.story && (x.story.v || 0) >= 2);
+    if (items.length < 2) return;
+    ANIM.idx = ((ANIM.idx || 0) + 1) % items.length;
+    const it = items[ANIM.idx], s = it.story, name = it.who || it.business;
+    const l = el.querySelector('.cv-story-l'); if (!l) return;
+    l.classList.add('out');
+    setTimeout(() => {
+      el.style.setProperty('--h', [...String(name)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7));
+      l.innerHTML = `<span class="cv-eyebrow">What ${esc(name.split(' ')[0])} taught you</span><span class="cv-story-h">${esc(s.headline)}</span><span class="cv-story-t">${esc(s.detail)}</span><span class="cv-story-who">${esc(name)}, ${esc(it.business)}</span>`;
+      l.classList.remove('out');
+    }, 380);
+  }, 8000);
+}
+// A short burst of confetti when you clear every reply in Quick review.
+function confetti() {
+  if (REDUCED()) return;
+  const c = document.createElement('canvas'); c.className = 'confetti'; document.body.appendChild(c);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight;
+  c.width = W * dpr; c.height = H * dpr; const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+  const cols = ['#3CE0F0', '#FF7A66', '#6FDCA0', '#F2C766', '#8DB7FF'];
+  const ps = Array.from({ length: 110 }, () => ({ x: W / 2 + (Math.random() - .5) * 80, y: H * .42, vx: (Math.random() - .5) * 13, vy: -Math.random() * 13 - 4, r: Math.random() * 6.28, vr: (Math.random() - .5) * .3, w: 6 + Math.random() * 6, h: 4 + Math.random() * 4, c: cols[Math.floor(Math.random() * cols.length)] }));
+  const t0 = performance.now();
+  const frame = t => {
+    const k = (t - t0) / 1600; ctx.clearRect(0, 0, W, H);
+    for (const p of ps) { p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; ctx.save(); ctx.globalAlpha = Math.max(0, 1 - k); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore(); }
+    if (k < 1) requestAnimationFrame(frame); else c.remove();
+  };
+  requestAnimationFrame(frame);
+}
+
 // ---------- Quick review: one reply at a time, swipe right to send, left for later ----------
 // A swipe right is the approval for that one email. It waits 5 seconds with an Undo before it
 // actually goes, so a slip of the thumb never sends anything.
 const SW = { ids: [], i: 0, sent: 0, later: 0, pending: new Map() };
 function swOpen() {
   const list = S.prospects.filter(p => needsAnswer(p)).sort((a, b) => String(a.replied_at).localeCompare(String(b.replied_at)));
-  SW.ids = list.map(p => p.id); SW.i = 0; SW.sent = 0; SW.later = 0;
+  SW.ids = list.map(p => p.id); SW.i = 0; SW.sent = 0; SW.later = 0; SW.celebrated = false;
   const el = $('#swipe'); el.hidden = false; document.documentElement.style.overflow = 'hidden'; document.body.classList.add('sw-on');
   swRender();
 }
@@ -2296,6 +2375,7 @@ function swRender() {
   const p = SW.i < total ? S.prospects.find(x => x.id === SW.ids[SW.i]) : null;
   const top = `<div class="sw-top"><span class="sw-count">${total ? Math.min(SW.i + 1, total) : 0} of ${total}</span><div class="sw-bar"><i style="width:${total ? Math.round(100 * SW.i / total) : 100}%"></i></div><button class="sw-x" data-sw="close" aria-label="Close">✕</button></div>`;
   if (!p) {
+    if (SW.sent && !SW.celebrated) { SW.celebrated = true; setTimeout(confetti, 150); }
     el.innerHTML = `${top}<div class="sw-done"><div class="sw-done-mark">✓</div><h2>You're through them</h2><p>${[SW.sent ? `${SW.sent} sent` : '', SW.later ? `${SW.later} for later` : ''].filter(Boolean).join(' · ') || 'Nothing left to answer.'}</p><button class="btn solid" data-sw="close">Back to the desk</button></div>`;
     return;
   }
@@ -2439,7 +2519,7 @@ function renderStories() {
       <footer><span class="cv-av" style="--h:${hue(name)}">${esc(ini(name))}</span><span><b>${esc(name)}</b><small>${esc(it.business)}${it.town ? ' · ' + esc(it.town) : ''}${it.at ? ' · ' + esc(new Date(it.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) : ''}</small></span></footer>
     </article>`;
   };
-  return `<div class="st-intro"><h2>Lessons</h2><p>The most useful thing each owner you've talked to taught you about running a business.</p></div><div class="st-wall">${items.map(card).join('')}</div>`;
+  return `<div class="st-intro"><h2>Lessons</h2><p>The most useful thing each owner you've talked to taught you about running a business.</p></div><div class="st-wall${ANIM.view ? ' enter' : ''}">${items.map(card).join('')}</div>`;
 }
 
 
@@ -2451,7 +2531,8 @@ function featuredStory() {
   if (!it) { if (items.length) setTimeout(storyFill, 0); return ''; }
   const s = it.story, name = it.who || it.business;
   const hue = [...String(name)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
-  return `<button class="cv-story" style="--h:${hue}" data-tab="stories">
+  setTimeout(storyRotateStart, 0);
+  return `<button class="cv-story" id="cvStory" style="--h:${hue}" data-tab="stories">
     <span class="cv-story-l"><span class="cv-eyebrow">What ${esc(name.split(' ')[0])} taught you</span>
       <span class="cv-story-h">${esc(s.headline)}</span>
       <span class="cv-story-t">${esc(s.detail)}</span>
@@ -3638,7 +3719,7 @@ document.addEventListener('click', async e => {
   const t = e.target;
   if (S.readOnly && t.closest('[data-act], [data-mark], [data-gdraft], #skipWeak, #sendQueue')) { e.preventDefault(); toast('View only: this desk is shared for looking, not sending.'); return; }
   const tab = t.closest('[data-tab]');
-  if (tab) { S.tab = tab.dataset.tab; lsSet('outreach-tab', S.tab); render(); if (tab.classList.contains('cv-story')) { const tb = $('#tabs'); if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
+  if (tab) { S.tab = tab.dataset.tab; lsSet('outreach-tab', S.tab); ANIM.view = true; render(); ANIM.view = false; if (tab.classList.contains('cv-story')) { const tb = $('#tabs'); if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
   const gd = t.closest('[data-gdraft]');
   if (gd) { const p = S.prospects.find(x => x.id === gd.dataset.gdraft); if (p) sendReadyReply(p).catch(err => toast(err && err.code ? mcpMessage(err, GMAIL) : err.message, { err: true })); return; }
   const bw = t.closest('[data-boardwho]');
@@ -3656,7 +3737,7 @@ document.addEventListener('click', async e => {
     return;
   }
   const ptab = t.closest('[data-pipetab]');
-  if (ptab) { S.pipeTab = ptab.dataset.pipetab; S.pipeAll = false; lsSet('pipe-tab', S.pipeTab); renderNotice(); return; }
+  if (ptab) { S.pipeTab = ptab.dataset.pipetab; S.pipeAll = false; lsSet('pipe-tab', S.pipeTab); ANIM.list = true; renderNotice(); ANIM.list = false; return; }
   const pall = t.closest('[data-pipeall]');
   if (pall) { S.pipeAll = pall.dataset.pipeall === '1'; renderNotice(); return; }
   const co = t.closest('[data-call-open]');
