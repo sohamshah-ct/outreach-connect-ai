@@ -3693,10 +3693,11 @@ function renderSes() {
   if (SES.out) { renderSesOut(root); return; }
   const transcript = SES.finals.join(' ');
   const teamsSteps = SES.teams ? `<ol class="sess-steps">
-      <li><b>Join</b>${SES.teamsOpened ? ' Teams opened in a new tab.' : ''} <a class="btn sm" href="${esc(teamsLink())}" target="_blank" rel="noopener">Open Teams</a></li>
-      <li><b>Turn on the transcript</b> once they've said it's OK to record: in the Teams meeting, More (…) → Record and transcribe → Start transcription. Teams tells everyone it's on.</li>
-      <li><b>After the call</b>, in the meeting chat open the transcript and download it as .vtt (or copy all the text). Drop it here, then tap End call.</li></ol>` : '';
-  const teamsBox = SES.teams ? `<div class="sess-box sess-drop" id="sessDrop"><div class="eyebrow"><span>Teams transcript</span><span>${SES.teamsImported ? (SES.teamsLines || []).length + ' parts' : ''}</span></div>
+      <li><b>Join</b>${SES.teamsOpened ? ' Teams opened in a new tab.' : ''} Choose <i>Continue on this browser</i> so the call runs in a Chrome tab. <a class="btn sm" href="${esc(teamsLink())}" target="_blank" rel="noopener">Open Teams</a></li>
+      <li><b>Record</b> once they've said it's OK: tick the box above, tap <i>Record the call</i> below, then <i>Record</i> in the tab that opens. Chrome asks what to share: pick the <b>Teams tab</b> with <b>Also share tab audio</b> on. You still hear everything in your headphones.</li>
+      <li><b>End</b> in the recorder tab when you hang up. The summary, CRM notes and thank-you show up here on their own.</li></ol>
+      ${SES.external ? '<div class="sess-help">Recording in the other tab. What\'s said shows up below as it\'s written down.</div>' : ''}` : '';
+  const teamsBox = SES.teams && (SES.teamsImported || SES.showDrop) ? `<div class="sess-box sess-drop" id="sessDrop"><div class="eyebrow"><span>Teams transcript</span><span>${SES.teamsImported ? (SES.teamsLines || []).length + ' parts' : ''}</span></div>
       ${SES.teamsImported ? sesLinesHtml((SES.teamsLines || []).map(l => ({ who: l.who, text: l.text }))) : `<div class="sess-dropzone"><p>Drop the .vtt file here</p><label class="btn sm">Choose file<input type="file" id="sessTxFile" accept=".vtt,.txt,text/vtt,text/plain" hidden></label><textarea id="sessTxPaste" placeholder="…or paste the transcript text here"></textarea></div>`}</div>` : '';
   const micNote = SES.teams ? teamsSteps : SES.external
     ? `<div class="sess-help">Recording in the other tab. Keep it open; tap End there when you're done and the summary shows up here by itself. What's said also shows up below as it's written down.</div>`
@@ -3716,19 +3717,20 @@ function renderSes() {
     <label class="sess-consent ${SES.consent ? 'ok' : ''}"><input type="checkbox" id="sessConsent" ${SES.consent ? 'checked' : ''}> <span>${esc(t.name ? t.name.split(' ')[0] : 'They')} said it's OK to record. <span style="color:var(--muted)">(Connecticut requires their OK before recording a phone call. Ask first.)</span></span></label>
     ${micNote}
     <div class="sess-main">
-      ${SES.teams ? teamsBox : ''}<div class="sess-box" ${SES.teams ? 'style="display:none"' : ''}><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
+      ${SES.teams ? teamsBox : ''}<div class="sess-box" ${SES.teamsImported || SES.showDrop ? 'style="display:none"' : ''}><div class="eyebrow"><span>What's being said</span><span>${transcript ? transcript.split(/\s+/).length + ' words' : ''}</span></div>
         <div class="sess-suggest" id="sessSuggest" ${SES.suggest && SES.suggest.length ? '' : 'hidden'}>${SES.suggest && SES.suggest.length ? `<div class="eyebrow">Questions to ask next</div><ol>${SES.suggest.map(q => `<li>${esc(q)}</li>`).join('')}</ol>` : ''}</div>
-        <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : '<span class="empty">Tap Record once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>'}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
+        <div class="sess-live" id="sessLive">${transcript ? esc(transcript) : (SES.teams ? '<span class="empty">Tap Record the call once they\'ve said OK. Both of you show up here as it\'s written down, with who said what.</span>' : '<span class="empty">Tap Record once they\'ve said OK. Their words and yours show up here. On a phone call, put it on speaker so the mic can hear both of you.</span>')}${SES.interim ? ` <span class="interim">${esc(SES.interim)}</span>` : ''}</div></div>
       <div class="sess-box"><div class="eyebrow"><span>Your notes</span></div>
         <textarea class="sess-notes" id="sessNotes" placeholder="Anything worth remembering: team size, what eats their time, what they asked you, what you promised to send…">${esc(SES.notes)}</textarea></div>
     </div>
     <div class="sess-actions">
-      ${SES.teams ? '' : `<button class="btn rec" data-ses="record">● ${SES.external ? 'Reopen the recorder' : 'Record'}</button>`}
+      ${SES.teamsImported ? '' : `<button class="btn rec" data-ses="record">● ${SES.external ? 'Reopen the recorder' : SES.teams ? 'Record the call' : 'Record'}</button>`}
       <button class="btn end" data-ses="end">${SES.ending ? 'Tap again to end and summarize' : `End ${SES.kind === 'meeting' ? 'meeting' : 'call'}`}</button>
     </div>
+    ${SES.teams && !SES.external && !SES.teamsImported && !SES.showDrop ? `<button class="btn ghost sm" data-ses="drop" style="align-self:center">Already have a Teams transcript? Add it instead</button>` : ''}
     ${SES.started ? `<button class="btn ghost sm" data-ses="discard" style="align-self:center">${SES.discarding ? 'Tap again to throw this session away' : 'Discard this session'}</button>` : ''}`;
   $('#sessNotes').addEventListener('input', e => { SES.notes = e.target.value; if (!SES.started) sesBegin(); sesSave(); });
-  if (SES.teams && !SES.teamsImported) {
+  if (SES.teams && !SES.teamsImported && $('#sessDrop')) {
     const drop = $('#sessDrop'), file = $('#sessTxFile'), paste = $('#sessTxPaste');
     const readFile = fl => { if (!fl) return; if (/\.docx$/i.test(fl.name)) { toast('Pick the .vtt download in Teams (the Word file can\'t be read here).', { err: true }); return; } fl.text().then(importTeamsTranscript); };
     file.addEventListener('change', () => readFile(file.files[0]));
@@ -3854,6 +3856,8 @@ function sesVoiceLines(segs, two) {
   return segs.map(s => ({ who: two && s.voice ? `Voice ${s.voice}` : '', text: s.text }));
 }
 async function sesNameVoices(segs, two) {
+  // The recorder heard the call and the mic separately, so it already knows who said what.
+  if (segs && SES.voices && SES.voices.known) { const meN = sesMe(), them = sesThem(SES.target); const out = []; for (const s of segs) { const who = s.voice === 2 ? them : meN; const l = out[out.length - 1]; if (l && l.who === who) l.text += ' ' + s.text; else out.push({ who, text: String(s.text || '').trim() }); } return out; }
   if (!segs || !S.sample) return sesVoiceLines(segs, two);
   const meN = sesMe(), them = sesThem(SES.target);
   const words = a => a.reduce((n, s) => n + String(s.text || '').split(/\s+/).filter(Boolean).length, 0);
@@ -4094,7 +4098,7 @@ function openRecorder() {
   if (!SES.sid) SES.sid = 's' + Date.now().toString(36);
   const t = SES.target;
   const tB64 = btoa(unescape(encodeURIComponent(JSON.stringify(t))));
-  const q = new URLSearchParams({ sid: SES.sid, biz: t.business, who: t.name || '', kind: SES.kind, consent: '1', go: '1', ret: settings().desk_url || DESK_SELF_URL, mail: settings().sender_email || '', t: tB64 });
+  const q = new URLSearchParams({ sid: SES.sid, biz: t.business, who: t.name || '', kind: SES.kind, consent: '1', go: '1', ...(SES.teams ? { src: 'call' } : {}), ret: settings().desk_url || DESK_SELF_URL, mail: settings().sender_email || '', t: tB64 });
   const url = `${RECORDER_URL}?${q}`;
   const w = window.open(url, '_blank');
   // Phones (and the Claude app) often can't open a tab from inside the desk at all, whatever
@@ -4192,6 +4196,7 @@ document.addEventListener('click', e => {
   const act = a.dataset.ses;
   if (act === 'close') closeSession();
   else if (act === 'other') { const biz = ($('#sessBiz').value || '').trim(); if (!biz) { toast('Type the business name.', { err: true }); return; } const who = ($('#sessWho').value || '').trim(); const org = crmMatch(biz); SES = null; sesForget(); openSession({ pid: null, name: who, business: biz, email: '', phone: '', crm_org_id: org ? org.id : null, thread_id: null, subject: '', town: org ? org.city || '' : '' }); }
+  else if (act === 'drop') { SES.showDrop = true; renderSes(); sesSave(); }
   else if (act === 'discard') { if (!SES.discarding) { SES.discarding = true; renderSes(); setTimeout(() => { if (SES) { SES.discarding = false; renderSes(); } }, 4000); return; } stopListening(); SES.done = true; closeSession(); toast('Session thrown away.'); }
   else if (act === 'listen') startListening();
   else if (act === 'record') openRecorder();

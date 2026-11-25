@@ -57,6 +57,7 @@ a{color:inherit}
   <div><div class="eyebrow" id="kind">Call</div><h1 id="biz">Session</h1><div class="who" id="who"></div></div>
   <div class="bar"><span class="clock" id="clock">0:00</span><span class="pill" id="pill"><i></i><span>Not started</span></span></div>
   <label class="consent" id="consentBox"><input type="checkbox" id="consent"><span><b id="okWho">They</b> said it's OK to record. <small>Connecticut requires their OK before recording a phone call. Ask first.</small></span></label>
+  <label class="consent" id="callBox"><input type="checkbox" id="callMode"><span><b>The call is on this computer</b> (Teams in a browser tab, you on headphones). It records the call's sound straight from your computer plus your mic, so it hears both of you and knows who's talking.</span></label>
   <div class="note" id="msg">Tap Record once they've said OK. Keep this tab open. On a phone call, put it on speaker so the mic hears both of you. The audio is saved to your desk with the transcript.</div>
   <div class="suggest" id="suggest" hidden><b>Questions to ask next</b><ol id="suggestList"></ol></div>
   <div class="voices" id="voices"></div>
@@ -85,7 +86,7 @@ const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform ==
 const V = window.Voices;
 
 // segs: one entry per stretch the browser writes down: {t0, t1, text, f (pitch), e (loudness)}.
-let st = { segs: [], interim: '', notes: '', elapsed: 0, since: null, startedAt: null, consent: false, sent: false };
+let st = { segs: [], interim: '', notes: '', elapsed: 0, since: null, startedAt: null, consent: false, sent: false, callMode: false };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
   if (saved && (!saved.sent || !saved.acked)) {
@@ -100,6 +101,9 @@ let rec = null, listening = false, wake = null, timer = null;
 let stream = null, actx = null, analyser = null, sampler = null, mr = null, chunks = [], mime = '', frames = [], audioOff = false, audioLost = false;
 let segStart = null, lastT1 = 0;
 if (qs.get('consent') === '1') st.consent = true;
+if (qs.get('src') === 'call') st.callMode = true;
+// Call mode: the call's own sound (shared from its tab or the screen) and the mic, kept apart so each line is known to be 'me' or 'them'.
+let callStream = null, callTrack = null, mixTrack = null, micA = null, callA = null, trackSR = true;
 if (st.startedAt && st.segs.length) audioLost = true; // reopened mid-session: audio from before is gone, the text isn't
 
 $('biz').textContent = biz;
@@ -107,6 +111,8 @@ $('who').textContent = person;
 $('okWho').textContent = person ? person.split(' ')[0] : 'They';
 $('kind').textContent = kind === 'meeting' ? 'Meeting' : 'Call';
 $('consent').checked = !!st.consent;
+$('callMode').checked = !!st.callMode;
+$('callBox').classList.toggle('ok', !!st.callMode);
 $('consentBox').classList.toggle('ok', !!st.consent);
 $('notes').value = st.notes || '';
 document.title = `Recording · ${biz}`;
@@ -115,7 +121,7 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ ...st, int
 const elapsed = () => st.elapsed + (st.since ? Date.now() - st.since : 0);
 const fmt = ms => { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0'); };
 const transcript = () => st.segs.map(s => s.text).join(' ').trim();
-const split = () => V ? V.splitVoices(st.segs) : { voices: st.segs.map(() => null), two: false };
+const split = () => st.callMode ? { voices: st.segs.map(s => s.who || 1), two: st.segs.some(s => s.who === 2), known: true } : V ? V.splitVoices(st.segs) : { voices: st.segs.map(() => null), two: false };
 
 function paint() {
   const sv = split();
@@ -123,17 +129,17 @@ function paint() {
   st.segs.forEach((s, i) => { const v = sv.two ? sv.voices[i] : 0; const g = groups[groups.length - 1]; if (g && g.v === v) g.t.push(s.text); else groups.push({ v, t: [s.text] }); });
   const live = $('live');
   const atBottom = live.scrollHeight - live.scrollTop - live.clientHeight < 60;
-  let html = groups.map(g => `<span class="ln${g.v ? ' v' + g.v : ''}">${sv.two ? `<span class="tag">${g.v ? 'Voice ' + g.v : '?'}</span>` : ''}<span class="tx">${esc(g.t.join(' '))}</span></span>`).join('');
+  let html = groups.map(g => `<span class="ln${g.v ? ' v' + g.v : ''}">${sv.two ? `<span class="tag">${sv.known ? (g.v === 2 ? 'Them' : 'You') : g.v ? 'Voice ' + g.v : '?'}</span>` : ''}<span class="tx">${esc(g.t.join(' '))}</span></span>`).join('');
   if (st.interim) {
     if (html) html = html.replace(/<\/span><\/span>$/, ` <span class="interim">${esc(st.interim)}</span></span></span>`);
     else html = `<span class="ln"><span class="tx"><span class="interim">${esc(st.interim)}</span></span></span>`;
   }
   live.innerHTML = html || '<span class="empty">What\'s said shows up here.</span>';
   if (atBottom) live.scrollTop = live.scrollHeight;
-  $('voices').textContent = !st.segs.length ? '' : sv.two ? 'Hearing two voices. Your desk puts names on them when you end.' : (audioOff || !stream && !listening) ? '' : 'One voice so far. A second shows up once the other person has said a few things.';
+  $('voices').textContent = st.callMode ? (callTrack ? 'Hearing the call and your mic.' : '') : !st.segs.length ? '' : sv.two ? 'Hearing two voices. Your desk puts names on them when you end.' : (audioOff || !stream && !listening) ? '' : 'One voice so far. A second shows up once the other person has said a few things.';
   $('pill').className = 'pill' + (listening ? ' live' : '');
   $('pill').innerHTML = `<i></i><span>${listening ? 'Recording' : st.startedAt ? 'Paused' : 'Not started'}</span>`;
-  $('rec').textContent = listening ? 'Pause' : (st.startedAt ? '● Keep recording' : '● Record');
+  $('rec').textContent = listening ? 'Pause' : (st.startedAt ? '● Keep recording' : st.callMode ? '● Record the call' : '● Record');
   $('rec').className = listening ? '' : 'rec';
   $('end').disabled = !(transcript() || $('notes').value.trim()) || st.sent;
   $('clock').textContent = fmt(elapsed());
@@ -145,7 +151,7 @@ function sendLive() {
   if (!window.opener || Date.now() - lastLive < 1500) return;
   lastLive = Date.now();
   const sv = split();
-  try { window.opener.postMessage({ app: 'outreach-rec', type: 'live', sid, transcript: transcript(), segs: st.segs.map((s, i) => ({ text: s.text, voice: sv.voices[i] })), notes: $('notes').value, ms: elapsed() }, '*'); } catch (e) {}
+  try { window.opener.postMessage({ app: 'outreach-rec', type: 'live', sid, transcript: transcript(), segs: st.segs.map((s, i) => ({ text: s.text, voice: sv.voices[i] })), known: !!sv.known, notes: $('notes').value, ms: elapsed() }, '*'); } catch (e) {}
 }
 
 function msg(text, cls) { $('msg').className = 'note' + (cls ? ' ' + cls : ''); $('msg').innerHTML = text; }
@@ -161,6 +167,7 @@ async function openAudio() {
     return false;
   }
   if (audioOff) { stream.getTracks().forEach(t => t.stop()); stream = null; return true; }
+  if (st.callMode) return openCallAudio();
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     actx = new AC();
@@ -185,10 +192,68 @@ async function openAudio() {
   } catch (e) { mr = null; }
   return true;
 }
+
+// The call's sound, shared from its tab (or the whole screen with its sound on Windows), mixed with the mic.
+async function openCallAudio() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { msg('This browser can\'t record a call from another tab. Use Google Chrome on a computer.', 'warn'); closeAudio(); return false; }
+  try {
+    callStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false },
+      systemAudio: 'include', selfBrowserSurface: 'exclude', surfaceSwitching: 'include', preferCurrentTab: false,
+    });
+  } catch (e) {
+    msg('Nothing was shared. Tap Record again, pick the Teams tab, and turn on <b>Also share tab audio</b>.', 'warn'); closeAudio(); return false;
+  }
+  callTrack = callStream.getAudioTracks()[0] || null;
+  if (!callTrack) {
+    callStream.getTracks().forEach(t => t.stop()); callStream = null; closeAudio();
+    msg('That share had no sound. Tap Record again: pick the <b>Teams tab</b> and turn on <b>Also share tab audio</b> (on Windows you can also pick Entire screen with <b>Share system audio</b> on).', 'warn');
+    return false;
+  }
+  callStream.getVideoTracks().forEach(t => { t.enabled = false; });
+  callTrack.addEventListener('ended', () => {
+    const was = listening;
+    if (was) pause();
+    if (mr && mr.state !== 'inactive') { try { mr.stop(); } catch (e) {} }
+    mr = null; closeAudio();
+    if (was) msg('The call\'s sound stopped being shared, so recording paused. Tap Keep recording and share the Teams tab again.', 'warn');
+  });
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    actx = new AC();
+    const mic = actx.createMediaStreamSource(stream), call = actx.createMediaStreamSource(new MediaStream([callTrack]));
+    micA = actx.createAnalyser(); micA.fftSize = 1024; callA = actx.createAnalyser(); callA.fftSize = 1024;
+    mic.connect(micA); call.connect(callA);
+    const dest = actx.createMediaStreamDestination();
+    mic.connect(dest); call.connect(dest);
+    mixTrack = dest.stream.getAudioTracks()[0];
+    const bm = new Float32Array(1024), bc = new Float32Array(1024);
+    const rms = (a, b) => { a.getFloatTimeDomainData(b); let s = 0; for (let i = 0; i < b.length; i++) s += b[i] * b[i]; return Math.sqrt(s / b.length); };
+    sampler = setInterval(() => { if (!listening) return; frames.push({ t: elapsed(), me: rms(micA, bm), them: rms(callA, bc) }); if (frames.length > 200000) frames.splice(0, 50000); }, 50);
+    if (window.MediaRecorder) {
+      mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+      mr = new MediaRecorder(dest.stream, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : { audioBitsPerSecond: 48000 });
+      mime = mr.mimeType || mime;
+      mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    }
+  } catch (e) { msg('Couldn\'t mix the call\'s sound with the mic in this browser. Use Google Chrome.', 'warn'); closeAudio(); return false; }
+  return true;
+}
+if (qs.get('debug') === '1') window.__rec = { peek: () => { const b = new Float32Array(1024); micA.getFloatTimeDomainData(b); let m = 0; for (const v of b) m = Math.max(m, Math.abs(v)); const c = new Float32Array(1024); callA.getFloatTimeDomainData(c); let n = 0; for (const v of c) n = Math.max(n, Math.abs(v)); return [m, n, frames.length, listening]; }, state: () => [actx && actx.state, stream && stream.getAudioTracks().map(t => t.readyState + '/' + t.muted), callTrack && (callTrack.readyState + '/' + callTrack.muted), mr && mr.state], frames: () => frames.slice(-20), whoSaid: (a, b) => whoSaid(a, b), now: () => elapsed() };
+// Who said a line: whichever side was louder while it was said (headphones keep the two apart).
+function whoSaid(t0, t1) {
+  let me = 0, them = 0, n = 0;
+  for (let i = frames.length - 1; i >= 0 && frames[i].t >= t0 - 300; i--) { if (frames[i].t <= t1 + 300) { me += frames[i].me || 0; them += frames[i].them || 0; n++; } }
+  if (!n) return 1;
+  return them > me * 1.15 ? 2 : 1;
+}
 function closeAudio() {
   clearInterval(sampler); sampler = null;
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = null;
+  if (callStream) callStream.getTracks().forEach(t => t.stop());
+  callStream = null; callTrack = null; mixTrack = null; micA = null; callA = null;
   if (actx) actx.close().catch(() => {});
   actx = null; analyser = null;
 }
@@ -207,6 +272,7 @@ const FATAL = {
   'service-not-allowed': 'This browser won\'t let the page use its speech-to-text. Open this page in Google Chrome.',
   'language-not-supported': 'English speech-to-text isn\'t available in this browser. Try Google Chrome.',
 };
+const feat = (t0, t1) => st.callMode ? { who: whoSaid(t0, t1), f: 0, e: 0 } : (V ? V.segFeatures(frames, t0, t1) : { f: 0, e: 0 });
 function listen() {
   if (!listening) return;
   const r = new SR();
@@ -223,7 +289,7 @@ function listen() {
         if (tx && (!last || last.text !== tx)) {
           const t1 = elapsed();
           const t0 = Math.max(lastT1, (segStart ?? t1) - 700);
-          st.segs.push({ t0, t1, text: tx, ...(V ? V.segFeatures(frames, t0, t1) : { f: 0, e: 0 }) });
+          st.segs.push({ t0, t1, text: tx, ...feat(t0, t1) });
           lastT1 = t1;
         }
         segStart = null;
@@ -235,7 +301,7 @@ function listen() {
   r.onerror = e => {
     if (rec !== r) return;
     if (FATAL[e.error]) { stopForGood(FATAL[e.error]); return; }
-    if (e.error === 'audio-capture' && stream && !audioOff) { dropAudio(); msg('This device can\'t record audio and write down words at the same time, so it\'s keeping the words only.', 'warn'); }
+    if (e.error === 'audio-capture' && stream && !audioOff && !st.callMode) { dropAudio(); msg('This device can\'t record audio and write down words at the same time, so it\'s keeping the words only.', 'warn'); }
     // no-speech, aborted, network and the rest: onend follows and starts a fresh one.
     if (e.error === 'network') msg('Speech-to-text lost its connection for a moment. Reconnecting… (the audio keeps recording)');
   };
@@ -243,11 +309,15 @@ function listen() {
     srAlive = false;
     if (rec !== r || !listening) return;
     // Keep what was half-written so nothing is lost between restarts.
-    if (st.interim) { const t1 = elapsed(), t0 = Math.max(lastT1, (segStart ?? t1) - 700); st.segs.push({ t0, t1, text: st.interim, ...(V ? V.segFeatures(frames, t0, t1) : { f: 0, e: 0 }) }); lastT1 = t1; st.interim = ''; segStart = null; paint(); save(); }
+    if (st.interim) { const t1 = elapsed(), t0 = Math.max(lastT1, (segStart ?? t1) - 700); st.segs.push({ t0, t1, text: st.interim, ...feat(t0, t1) }); lastT1 = t1; st.interim = ''; segStart = null; paint(); save(); }
     srTries++;
     setTimeout(listen, Math.min(3000, srTries < 3 ? 60 : 250 * srTries));
   };
   rec = r;
+  if (st.callMode && mixTrack && trackSR) {
+    try { r.start(mixTrack); return; }
+    catch (e) { if (e && e.name === 'InvalidStateError') { srTries++; setTimeout(listen, 400); return; } trackSR = false; msg('This version of Chrome can only write down what your mic hears, so their side is recorded but not written down. Update Chrome to fix it.', 'warn'); }
+  }
   try { r.start(); } catch (e) { srTries++; setTimeout(listen, 400); }
 }
 function stopForGood(why) {
@@ -276,7 +346,7 @@ async function start() {
 }
 function pause() {
   listening = false;
-  if (st.interim) { const t1 = elapsed(); st.segs.push({ t0: Math.max(lastT1, (segStart ?? t1) - 700), t1, text: st.interim.trim(), ...(V ? V.segFeatures(frames, Math.max(lastT1, (segStart ?? t1) - 700), t1) : { f: 0, e: 0 }) }); lastT1 = t1; st.interim = ''; segStart = null; }
+  if (st.interim) { const t1 = elapsed(); st.segs.push({ t0: Math.max(lastT1, (segStart ?? t1) - 700), t1, text: st.interim.trim(), ...feat(Math.max(lastT1, (segStart ?? t1) - 700), t1) }); lastT1 = t1; st.interim = ''; segStart = null; }
   if (rec) { try { rec.stop(); } catch (e) {} rec = null; }
   if (st.since) { st.elapsed += Date.now() - st.since; st.since = null; }
   if (mr && mr.state === 'recording') { try { mr.pause(); } catch (e) {} }
@@ -314,7 +384,7 @@ async function end() {
   }
   const sv = split();
   const segs = st.segs.map((s, i) => ({ t0: s.t0, t1: s.t1, text: s.text, voice: sv.voices[i] }));
-  const payload = { app: 'outreach-rec', type: 'done', sid, transcript: transcript(), segs, voices: { two: sv.two, pitch: sv.pitch || [], db: sv.db || 0 }, notes: $('notes').value.trim(), ms: elapsed(), startedAt: st.startedAt, kind, consent: !!st.consent, target, audioPartial: audioLost };
+  const payload = { app: 'outreach-rec', type: 'done', sid, transcript: transcript(), segs, voices: { two: sv.two, known: !!sv.known, pitch: sv.pitch || [], db: sv.db || 0 }, notes: $('notes').value.trim(), ms: elapsed(), startedAt: st.startedAt, kind, consent: !!st.consent, target, audioPartial: audioLost };
   // 1) Straight back to the desk tab that opened this one, with the audio file.
   let acked = false;
   const onAck = e => { if (e.data && e.data.app === 'outreach-rec' && e.data.type === 'ack' && e.data.sid === sid) acked = true; };
@@ -352,13 +422,18 @@ window.addEventListener('message', e => {
 });
 $('consent').addEventListener('change', e => { st.consent = e.target.checked; $('consentBox').classList.toggle('ok', st.consent); if (!st.consent && listening) pause(); save(); paint(); });
 $('rec').addEventListener('click', () => listening ? pause() : start());
+$('callMode').addEventListener('change', e => { if (listening || st.startedAt) { e.target.checked = st.callMode; msg('Switch this before you start recording.', 'warn'); return; } st.callMode = e.target.checked; $('callBox').classList.toggle('ok', st.callMode); save(); intro(); paint(); });
 $('end').addEventListener('click', () => { if ($('end').dataset.sure) end(); else { $('end').dataset.sure = '1'; $('end').textContent = 'Tap again to end'; setTimeout(() => { delete $('end').dataset.sure; $('end').textContent = 'End and send to my desk'; }, 4000); } });
 $('notes').addEventListener('input', () => { st.notes = $('notes').value; save(); paint(); sendLive(); });
 window.addEventListener('beforeunload', e => { if (listening || (mr && mr.state !== 'inactive')) { e.preventDefault(); e.returnValue = ''; } });
 paint();
 // Opened from "I'm on the call" on the desk: start right away (the browser may ask for the mic once).
-if (qs.get('go') === '1' && st.consent && !st.startedAt && SR) setTimeout(() => start(), 300);
-if (!st.startedAt) msg(SR ? 'Tap Record to start. Your browser will ask to use the microphone the first time.' : 'This browser can\'t turn speech into text. Open this page in Google Chrome (or Safari on a Mac or iPhone).', SR ? '' : 'warn');
+if (qs.get('go') === '1' && st.consent && !st.startedAt && SR && !st.callMode) setTimeout(() => start(), 300);
+function intro() {
+  if (!SR) { msg('This browser can\'t turn speech into text. Open this page in Google Chrome (or Safari on a Mac or iPhone).', 'warn'); return; }
+  msg(st.callMode ? 'Tap <b>Record</b>. Chrome asks what to share: pick the <b>Teams tab</b> and make sure <b>Also share tab audio</b> is on, then Share. (Teams in the desktop app on Windows: pick Entire screen and turn on Share system audio.) You\'ll still hear the call in your headphones.' : 'Tap Record to start. Your browser will ask to use the microphone the first time.');
+}
+if (!st.startedAt) intro();
 else if (audioLost) msg('This page was reopened, so the audio from before is gone. The words are kept, and Record picks up from here.');
 })();
 </script>
