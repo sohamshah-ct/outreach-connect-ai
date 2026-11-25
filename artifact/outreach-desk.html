@@ -2110,7 +2110,7 @@ function renderNotice() {
   } else if (S.loaded && !S.prospects.length && !S.meta.progress) {
     html += `<div class="banner"><div><b>No businesses researched yet.</b><p>Claude fills this in: it finds small businesses near Storrs, reads their websites for the owner and an email address, and writes each one a draft. They'll show up here under Review. Your class CRM is already connected; see the My CRM tab.${S.meta.blocked ? ` <br><br>${esc(S.meta.blocked)}` : ''}</p></div></div>`;
   }
-  $('#notice').innerHTML = html;
+  setHTML($('#notice'), html);
 }
 
 // Opens come from the open tracker via the sync job (scripts/outreach-opens.js),
@@ -2139,7 +2139,7 @@ function renderStats() {
     { n: sentToday(), l: 'Sent today', small: `/ ${settings().daily_cap}` },
     { n: mine ?? '–', l: 'Mine in class CRM' },
   ];
-  $('#stats').innerHTML = tiles.map(t => { const tag = t.tab ? 'button' : 'div'; return `<${tag} class="stat${t.hot ? ' hot' : ''}"${t.tab ? ` data-tab="${t.tab}" title="See the replies"` : ''}><div class="n">${t.n}${t.small ? `<small>${esc(t.small)}</small>` : ''}</div><div class="l eyebrow">${esc(t.l)}</div></${tag}>`; }).join('');
+  setHTML($('#stats'), tiles.map(t => { const tag = t.tab ? 'button' : 'div'; return `<${tag} class="stat${t.hot ? ' hot' : ''}"${t.tab ? ` data-tab="${t.tab}" title="See the replies"` : ''}><div class="n">${t.n}${t.small ? `<small>${esc(t.small)}</small>` : ''}</div><div class="l eyebrow">${esc(t.l)}</div></${tag}>`; }).join(''));
 }
 
 function renderChart() {
@@ -2169,9 +2169,9 @@ function renderChart() {
   const grid = [0.5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${W}" y="${y(max * f) - 3}" text-anchor="end" font-size="9.5" font-family="var(--mono)" fill="var(--muted)">${Math.round(max * f)}</text>`).join('');
   const ts = days.reduce((a, d) => a + d.sent, 0), tr = days.reduce((a, d) => a + d.replies, 0);
   $('#chartTitle').textContent = `${ts} sent · ${tr} ${tr === 1 ? 'reply' : 'replies'}`;
-  $('#chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Bar chart of emails sent and replies per day">${grid}<line x1="0" x2="${W}" y1="${H - padB}" y2="${H - padB}" stroke="var(--line-strong)"/>${marks}${labels}${hits}</svg>
+  setHTML($('#chart'), `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Bar chart of emails sent and replies per day">${grid}<line x1="0" x2="${W}" y1="${H - padB}" y2="${H - padB}" stroke="var(--line-strong)"/>${marks}${labels}${hits}</svg>
     <div class="tip" id="tip"></div>
-    <details><summary>Show as table</summary><table><thead><tr><th>Day</th><th>Sent</th><th>Replies</th></tr></thead><tbody>${days.map(d => `<tr><td>${esc(d.day)}</td><td>${d.sent}</td><td>${d.replies}</td></tr>`).join('')}</tbody></table></details>`;
+    <details><summary>Show as table</summary><table><thead><tr><th>Day</th><th>Sent</th><th>Replies</th></tr></thead><tbody>${days.map(d => `<tr><td>${esc(d.day)}</td><td>${d.sent}</td><td>${d.replies}</td></tr>`).join('')}</tbody></table></details>`);
   const svg = $('#chart svg'), tip = $('#tip');
   svg.addEventListener('mousemove', e => {
     const i = e.target.dataset && e.target.dataset.i;
@@ -2197,7 +2197,7 @@ function renderTabs() {
     ['crm', 'My CRM', S.crmMine ? S.crmMine.length : null],
     ['board', 'Class board', S.crmBoard ? new Set(S.crmBoard.map(o => (o.owner || {}).name || '')).size : null],
   ];
-  $('#tabs').innerHTML = tabs.map(([k, l, n]) => `<button class="tab" role="tab" aria-selected="${S.tab === k}" data-tab="${k}">${l}${n != null ? `<b>${n}</b>` : ''}</button>`).join('');
+  setHTML($('#tabs'), tabs.map(([k, l, n]) => `<button class="tab" role="tab" aria-selected="${S.tab === k}" data-tab="${k}">${l}${n != null ? `<b>${n}</b>` : ''}</button>`).join(''));
   $('#filters').hidden = S.tab === 'activity' || S.tab === 'calls' || S.tab === 'crm' || S.tab === 'board' || S.tab === 'replies';
   $('#fClosed').closest('label').hidden = S.tab === 'review';
   const states = [...new Set(ps.map(stateOf))].sort((a, b) => (a === 'CT' ? -1 : b === 'CT' ? 1 : a.localeCompare(b)));
@@ -2648,7 +2648,7 @@ function prepHtml(p) {
 // Re-draw one business's detail wherever it's showing, unless you're typing in it.
 function refreshDetail(id) {
   if (isEditing()) return;
-  if (S.drawerId === id) { $('#drawerBody').innerHTML = detailHtml(id); fitTextareas(); }
+  if (S.drawerId === id) { setHTML($('#drawerBody'), detailHtml(id)); fitTextareas(); }
   if (S.tab === 'review' && S.reviewId === id && $('#reviewPane')) { $('#reviewPane').innerHTML = detailHtml(id); fitTextareas(); }
 }
 
@@ -2876,14 +2876,14 @@ function detailHtml(id) {
 // ---------- render ----------
 function renderView() {
   const v = $('#view');
-  if (S.tab === 'pipeline') v.innerHTML = renderPipeline();
-  else if (S.tab === 'list') v.innerHTML = renderList();
-  else if (S.tab === 'replies') v.innerHTML = renderReplies();
-  else if (S.tab === 'activity') v.innerHTML = renderActivity();
-  else if (S.tab === 'calls') v.innerHTML = renderCalls();
-  else if (S.tab === 'crm') v.innerHTML = renderCrm();
-  else if (S.tab === 'board') v.innerHTML = renderBoard();
-  else v.innerHTML = renderReview();
+  if (S.tab === 'pipeline') setHTML(v, renderPipeline());
+  else if (S.tab === 'list') setHTML(v, renderList());
+  else if (S.tab === 'replies') setHTML(v, renderReplies());
+  else if (S.tab === 'activity') setHTML(v, renderActivity());
+  else if (S.tab === 'calls') setHTML(v, renderCalls());
+  else if (S.tab === 'crm') setHTML(v, renderCrm());
+  else if (S.tab === 'board') setHTML(v, renderBoard());
+  else setHTML(v, renderReview());
   fitTextareas();
 }
 function isEditing() {
@@ -2909,13 +2909,20 @@ function renderMe() {
   const line2 = [m.majorCap, s.grad_year ? `'${String(s.grad_year).slice(-2)}` : ''].filter(Boolean).join(' ');
   el.innerHTML = `${s.photo ? `<img src="${esc(s.photo)}" alt="${esc(m.name)}" width="72" height="72">` : `<span class="initials" aria-hidden="true">${esc(initials)}</span>`}<div><b>${esc(m.name)}</b>${line2 ? `<span>${esc(line2)}</span>` : ''}<span>${esc(s.school_long || '')}</span></div>`;
 }
+// Only touch the page when something actually changed: rewriting identical HTML resets hover
+// and focus and makes the page jump while you scroll.
+const _lastHTML = new WeakMap();
+function setHTML(el, html) { if (!el) return false; if (_lastHTML.get(el) === html) return false; el.innerHTML = html; _lastHTML.set(el, html); return true; }
+// Data can arrive several times in a burst (prospects, meta, calendar); paint once per frame.
+let _renderQ = 0;
+function scheduleRender() { if (_renderQ) return; _renderQ = requestAnimationFrame(() => { _renderQ = 0; render(); }); }
 function render() {
   renderMe(); renderConn(); renderNotice(); renderStats(); renderChart(); renderCallBar(); renderTabs();
   radarData(); radarInit();
   // While Claude is writing into a reply or prep sheet, leave the page as it is.
   const writing = Object.keys(S.working).length > 0;
   if (!isEditing() && !writing) renderView();
-  if (S.drawerId && !writing && !($('#drawerBody').contains(document.activeElement) && isEditing())) { $('#drawerBody').innerHTML = detailHtml(S.drawerId); fitTextareas(); }
+  if (S.drawerId && !writing && !($('#drawerBody').contains(document.activeElement) && isEditing())) { if (setHTML($('#drawerBody'), detailHtml(S.drawerId))) fitTextareas(); }
 }
 function fitTextareas() {
   document.querySelectorAll('textarea#dBody, textarea#rBody').forEach(t => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 4}px`; });
@@ -2996,6 +3003,7 @@ function blipColor(p) {
 }
 const R_STATE = { blips: [], hover: null, raf: 0, sig: '' };
 function radarData() {
+  if (R_STATE.src !== S.prospects) { R_STATE.src = S.prospects; R_STATE.ver = (R_STATE.ver || 0) + 1; }
   R_STATE.blips = S.prospects.map(p => { const pl = mapPlace(p); return pl ? { p, ...pl } : null; }).filter(Boolean);
   // State list beside the map.
   const counts = {};
@@ -3009,23 +3017,20 @@ function radarData() {
   list.innerHTML = CLASS_STATES.map(st => `<button class="st-row${S.state === st ? ' on' : ''}" data-st="${st}"><b>${st}</b><span>${esc(STATE_NAMES[st])}</span><em>${counts[st] || 0}</em></button>`).join('')
     + (far ? `<button class="st-row far${S.state === 'outside' ? ' on' : ''}" data-st="outside" title="Found by the research but outside the area the class works in"><b>US</b><span>Outside the class area</span><em>${far}</em></button>` : '');
 }
-function mapFrame(t) {
-  const cv = document.getElementById('radar');
-  if (!cv) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth, h = cv.clientHeight;
-  if (!w || !h) { R_STATE.raf = requestAnimationFrame(mapFrame); return; }
-  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-  const ctx = cv.getContext('2d');
-  const sc = Math.min(w / NE_MAP.w, h / NE_MAP.h);
-  const ox = (w - NE_MAP.w * sc) / 2, oy = (h - NE_MAP.h * sc) / 2;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-  // graticule, every degree
+// The map only animates while it's on screen and the tab is in front, at about 30 frames a second.
+// The outline (graticule, states, labels) is drawn once into a cached layer; each frame only adds
+// the scan line and the dots, and the dots' glow is a cheap halo instead of canvas shadowBlur.
+R_STATE.visible = true; R_STATE.last = 0; R_STATE.base = null; R_STATE.baseKey = '';
+function mapStop() { if (R_STATE.raf) cancelAnimationFrame(R_STATE.raf); R_STATE.raf = 0; }
+function mapStart() { if (!R_STATE.raf && R_STATE.visible && !document.hidden) R_STATE.raf = requestAnimationFrame(mapFrame); }
+function mapBase(w, h, dpr, sc, ox, oy) {
+  const key = [w, h, dpr, S.state, R_STATE.ver].join('|');
+  if (R_STATE.base && R_STATE.baseKey === key) return R_STATE.base;
+  const c = document.createElement('canvas'); c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.strokeStyle = 'rgba(120,210,230,.07)'; ctx.lineWidth = 1;
   for (let lon = -80; lon <= -67; lon++) { const x = ox + projX(lon) * sc; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
   for (let lat = 40; lat <= 47; lat++) { const y = oy + projY(lat) * sc; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-  // states
   for (const [st, rings] of Object.entries(NE_MAP.states)) {
     const inArea = CLASS_STATES.includes(st), sel = S.state === st;
     ctx.beginPath();
@@ -3038,36 +3043,62 @@ function mapFrame(t) {
   ctx.font = `600 ${Math.max(11, 15 * sc * 1.6)}px "JetBrains Mono", monospace`; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(207,233,242,.32)';
   const LABEL = { CT: [41.45, -72.75], MA: [42.55, -72.1], RI: [41.25, -71.35], NH: [43.9, -71.6], VT: [44.25, -72.75], ME: [45.3, -69.3], NY: [42.6, -75.6] };
   for (const [st, [la, lo]] of Object.entries(LABEL)) ctx.fillText(st, ox + projX(lo) * sc, oy + projY(la) * sc);
-  // scan line, west to east
+  // Every dot at rest; each frame only brightens the ones the scan line just passed.
+  const k = Math.max(.8, sc * 1.4);
+  for (const b of R_STATE.blips) {
+    b.sx = ox + b.x * sc; b.sy = oy + b.y * sc;
+    b.dim = !!(S.state && S.state !== 'outside' && stateOf(b.p) !== S.state);
+    b.col = blipColor(b.p);
+    b.size = (b.p.status === 'replied' ? 5 : b.p.status === 'sent' || b.p.status === 'followed_up' ? 4 : 3) * k;
+    ctx.globalAlpha = b.dim ? .12 : .45; ctx.fillStyle = b.col;
+    ctx.beginPath(); ctx.arc(b.sx, b.sy, b.size, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const ux = ox + projX(-72.2495) * sc, uy = oy + projY(41.8084) * sc;
+  ctx.strokeStyle = '#3CE0F0'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ux, uy, 7, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#3CE0F0'; ctx.font = `600 ${Math.max(10, 12 * sc * 1.4)}px "JetBrains Mono", monospace`; ctx.textAlign = 'left'; ctx.fillText('UConn', ux + 11, uy - 9);
+  R_STATE.base = c; R_STATE.baseKey = key;
+  return c;
+}
+function mapFrame(t) {
+  R_STATE.raf = 0;
+  const cv = document.getElementById('radar');
+  if (!cv) return;
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const animate = !reduce && R_STATE.visible && !document.hidden;
+  if (animate && t - R_STATE.last < 32 && R_STATE.last) { R_STATE.raf = requestAnimationFrame(mapFrame); return; }
+  R_STATE.last = t;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) { if (animate) R_STATE.raf = requestAnimationFrame(mapFrame); return; }
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d');
+  const sc = Math.min(w / NE_MAP.w, h / NE_MAP.h);
+  const ox = (w - NE_MAP.w * sc) / 2, oy = (h - NE_MAP.h * sc) / 2;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.drawImage(mapBase(w, h, dpr, sc, ox, oy), 0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const scanX = reduce ? -1 : ((t / 6500) % 1) * (w + 160) - 80;
   if (!reduce) {
     const g = ctx.createLinearGradient(scanX - 120, 0, scanX, 0);
     g.addColorStop(0, 'rgba(60,224,240,0)'); g.addColorStop(1, 'rgba(60,224,240,.16)');
     ctx.fillStyle = g; ctx.fillRect(scanX - 120, 0, 120, h);
-    ctx.strokeStyle = 'rgba(60,224,240,.75)'; ctx.beginPath(); ctx.moveTo(scanX, 0); ctx.lineTo(scanX, h); ctx.stroke();
+    ctx.strokeStyle = 'rgba(60,224,240,.75)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(scanX, 0); ctx.lineTo(scanX, h); ctx.stroke();
   }
-  // businesses
   for (const b of R_STATE.blips) {
-    b.sx = ox + b.x * sc; b.sy = oy + b.y * sc;
-    const behind = scanX - b.sx;
-    const glow = reduce ? .7 : behind >= 0 ? Math.max(0, 1 - behind / 260) : 0;
-    const dim = S.state && S.state !== 'outside' && stateOf(b.p) !== S.state;
-    const col = blipColor(b.p);
-    const size = (b.p.status === 'replied' ? 5 : b.p.status === 'sent' || b.p.status === 'followed_up' ? 4 : 3) * Math.max(.8, sc * 1.4);
     const hov = R_STATE.hover === b;
-    ctx.globalAlpha = dim ? .12 : .45 + .55 * glow;
-    if (!dim && (glow > .3 || hov)) { ctx.shadowColor = col; ctx.shadowBlur = hov ? 18 : 12 * glow; }
-    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(b.sx, b.sy, hov ? size + 3 : size, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    if (hov) { ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(b.sx, b.sy, size + 9, 0, Math.PI * 2); ctx.stroke(); }
+    const behind = scanX - b.sx;
+    const glow = reduce ? 0 : behind >= 0 && behind < 260 ? 1 - behind / 260 : 0;
+    if (b.dim || (!hov && glow <= 0)) continue;
+    ctx.fillStyle = b.col;
+    if (glow > .3 || hov) { ctx.globalAlpha = hov ? .35 : .22 * glow; ctx.beginPath(); ctx.arc(b.sx, b.sy, b.size * (hov ? 3 : 2.4), 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = hov ? 1 : .55 * glow;
+    ctx.beginPath(); ctx.arc(b.sx, b.sy, hov ? b.size + 3 : b.size, 0, Math.PI * 2); ctx.fill();
+    if (hov) { ctx.strokeStyle = b.col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(b.sx, b.sy, b.size + 9, 0, Math.PI * 2); ctx.stroke(); }
   }
   ctx.globalAlpha = 1;
-  // UConn, where the class meets
-  const ux = ox + projX(-72.2495) * sc, uy = oy + projY(41.8084) * sc;
-  ctx.strokeStyle = '#3CE0F0'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ux, uy, 7, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = '#3CE0F0'; ctx.font = `600 ${Math.max(10, 12 * sc * 1.4)}px "JetBrains Mono", monospace`; ctx.textAlign = 'left'; ctx.fillText('UConn', ux + 11, uy - 9);
-  R_STATE.raf = reduce ? 0 : requestAnimationFrame(mapFrame);
+  if (animate) R_STATE.raf = requestAnimationFrame(mapFrame);
 }
 function radarHit(e) {
   const cv = document.getElementById('radar');
@@ -3102,17 +3133,20 @@ function radarInit() {
   cv.addEventListener('mouseleave', () => { R_STATE.hover = null; tip.hidden = true; });
   cv.addEventListener('click', e => { const best = radarHit(e); if (best) openDrawer(best.p.id); });
   document.getElementById('stateList').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b) setStateFilter(b.dataset.st); });
-  R_STATE.raf = requestAnimationFrame(mapFrame);
+  if ('IntersectionObserver' in window) new IntersectionObserver(es => { R_STATE.visible = es[es.length - 1].isIntersecting; if (R_STATE.visible) mapStart(); else mapStop(); }, { rootMargin: '80px' }).observe(cv);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) mapStop(); else mapStart(); });
+  window.addEventListener('resize', () => { R_STATE.base = null; if (!R_STATE.raf) mapFrame(performance.now()); }, { passive: true });
+  mapStart();
 }
 
 // ---------- drawer ----------
 function openDrawer(id) {
   S.drawerId = id;
-  try { $('#drawerBody').innerHTML = detailHtml(id); }
+  try { setHTML($('#drawerBody'), detailHtml(id)); }
   catch (e) {
     // Show the problem instead of silently doing nothing.
     console.error(e);
-    $('#drawerBody').innerHTML = `<div style="padding:24px"><b>This business didn't open.</b><p style="margin-top:8px">Send Claude a screenshot of this: ${esc(String((e && e.message) || e))}</p><pre style="white-space:pre-wrap; font-size:11px; opacity:.7">${esc(String((e && e.stack) || '').split('\n').slice(0, 4).join('\n'))}</pre></div>`;
+    _lastHTML.delete($('#drawerBody')); $('#drawerBody').innerHTML = `<div style="padding:24px"><b>This business didn't open.</b><p style="margin-top:8px">Send Claude a screenshot of this: ${esc(String((e && e.message) || e))}</p><pre style="white-space:pre-wrap; font-size:11px; opacity:.7">${esc(String((e && e.stack) || '').split('\n').slice(0, 4).join('\n'))}</pre></div>`;
   }
   $('#drawer').classList.add('on'); $('#drawer').setAttribute('aria-hidden', 'false'); $('#scrim').classList.add('on');
   fitTextareas();
@@ -4269,7 +4303,7 @@ render();
     db.collection('prospects').onSnapshot(snap => {
       S.prospects = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       S.loaded = true; S.dbState = 'ok';
-      render();
+      if (deepLinked) scheduleRender(); else render();
       // A "Send it" button in a reply email links here as #send-<id>: open that reply.
       if (!deepLinked) {
         deepLinked = true;
@@ -4285,9 +4319,9 @@ render();
     if (!S.readOnly) db.collection('sessions').onSnapshot(snap => {
       S.calls = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.ended_at || b.started_at || '').localeCompare(String(a.ended_at || a.started_at || '')));
       S._sesPast = S.calls;
-      render(); paintFab();
+      scheduleRender(); paintFab();
     }, () => { S.calls = []; });
-    db.doc('meta/status').onSnapshot(snap => { S.meta = snap.exists ? (snap.data() || {}) : {}; S.metaLoaded = true; render(); if (!S.readOnly) { migrateDrafts(); docketSoon(); } }, () => {});
+    db.doc('meta/status').onSnapshot(snap => { S.meta = snap.exists ? (snap.data() || {}) : {}; S.metaLoaded = true; scheduleRender(); if (!S.readOnly) { migrateDrafts(); docketSoon(); } }, () => {});
     // Busy times from the student's Outlook calendar, refreshed each weekday morning.
     if (!S.readOnly) db.doc('meta/calendar').onSnapshot(snap => { S.cal = snap.exists ? (snap.data() || null) : null; S.calLoaded = true; refreshAllDetails(); docketSoon(); }, () => { S.calLoaded = true; docketSoon(); });
     if (S.readOnly) {
