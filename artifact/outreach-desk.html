@@ -404,7 +404,8 @@ table.list a{color:var(--info); text-decoration:none;}
 .cv-story-l{display:flex; flex-direction:column; gap:6px; min-width:0;}
 .cv-story q{font-family:var(--serif); font-size:19px; line-height:1.35; color:var(--ink); quotes:"“" "”";}
 .cv-story q::before,.cv-story q::after{color:hsl(var(--h) 60% 50%);}
-.cv-story-t{font-size:16px; line-height:1.45; color:var(--ink-2);}
+.cv-story-h{font-family:var(--serif); font-size:21px; font-weight:600; line-height:1.25; color:var(--ink);}
+.cv-story-t{font-size:15px; line-height:1.5; color:var(--ink-2);}
 .cv-story-who{font-size:13px; color:var(--muted);}
 .cv-story-r{white-space:nowrap; font-size:13px; font-weight:600; color:var(--ink-2);}
 @media (max-width:760px){ .cv-story{flex-direction:column; align-items:flex-start; padding:16px 18px;} .cv-story q{font-size:17px;} .cv-cta{width:100%; justify-content:space-between;} }
@@ -419,7 +420,8 @@ table.list a{color:var(--info); text-decoration:none;}
 .st-quote{margin:0 0 16px; font-family:var(--serif); font-size:20px; line-height:1.35; color:var(--ink); quotes:"“" "”";}
 .st-quote::before{content:open-quote; color:hsl(var(--h) 60% 50%); margin-right:2px;}
 .st-quote::after{content:close-quote; color:hsl(var(--h) 60% 50%);}
-.st-story{margin:0 0 16px; font-size:16px; line-height:1.5; color:var(--ink-2);}
+.st-lesson{margin:0 0 8px; font-family:var(--serif); font-size:22px; line-height:1.25; font-weight:600; color:var(--ink);}
+.st-story{margin:0 0 16px; font-size:15px; line-height:1.55; color:var(--ink-2);}
 .st-card footer{display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--line);}
 .st-card footer .cv-av{width:34px; height:34px; font-size:12.5px;}
 .st-card footer b{display:block; font-size:14px; color:var(--ink);}
@@ -2387,33 +2389,30 @@ function storyItems() {
     seen.add(p.id);
     out.push({ kind: 'prospect', id: p.id, p, who: p.contact_name || '', business: shortName(p.name), town: p.town, at: p.called_at || p.updated_at, story: p.story || null, src: p });
   }
-  return out.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  return out.filter(x => !(x.story && x.story.none)).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
 }
 async function storyFill() {
   if (STORY.busy || S.readOnly || !S.sample || !S.db) return;
-  const todo = storyItems().filter(x => (!x.story || !x.story.v) && !STORY.tried.has(x.id)).slice(0, 4);
+  const todo = storyItems().filter(x => (!x.story || (x.story.v || 0) < 2) && !STORY.tried.has(x.id)).slice(0, 4);
   todo.forEach(x => STORY.tried.add(x.id));
   if (!todo.length) return;
   STORY.busy = true;
   try {
     for (const it of todo) {
       const meN = sesMe();
-      const ownerLines = it.kind === 'session' ? (it.src.lines || []).filter(l => l && l.text && l.who && l.who !== meN && !new RegExp('\\b' + meN + '\\b', 'i').test(l.who)).map(l => l.text) : [];
-      const ownerText = ownerLines.join('\n').slice(0, 7000);
+      const ownerText = it.kind === 'session' ? (it.src.lines || []).filter(l => l && l.text && l.who && l.who !== meN).map(l => l.text).join(' ').slice(0, 7000) : '';
       const notes = it.kind === 'session' ? [it.src.summary, ...(it.src.learned || [])].filter(Boolean).join('\n') : String(it.src.call_notes || '');
       const prompt = [
-        `${me().name || 'A UConn student'} had a call with ${it.who || 'the owner'} of ${it.business}. He collects the most memorable part of each owner's story: how they got started, a turning point, or something they built or worked hard for. Never a task, tool, spreadsheet or process.`,
-        ownerText ? `WHAT THE OWNER SAID (speech-to-text; a few lines may really be the student talking, so skip anything that sounds like him introducing himself, asking a question or making small talk):\n${ownerText}` : '',
-        `NOTES FROM THE CALL:\n${notes.slice(0, 3000) || '(none)'}`,
-        'Return JSON {"headline": "3 to 6 plain words naming that moment, no quotes", "quote": "' + (ownerText ? 'one or two sentences copied EXACTLY, word for word, from the owner\'s lines above (max 220 characters); empty if nothing fits' : '') + '", "story": "one plain sentence in the third person telling that moment, using only what is above, no hype"}.',
+        `${me().name || 'A UConn student'} wants to start his own business one day. He talks to local owners to learn from them. From this call with ${it.who || 'the owner'} of ${it.business}, pick the ONE most useful lesson for someone starting a business: a decision they made, what worked or didn't, a tradeoff, advice they gave, or something that surprised them. Not just how they got started, unless the way they started is itself the lesson.`,
+        `NOTES FROM THE CALL (most reliable):\n${notes.slice(0, 3500) || '(none)'}`,
+        ownerText ? `WHAT THEY SAID (messy speech-to-text, for detail only; never copy garbled wording):\n${ownerText}` : '',
+        'Rules: specific to them, with their concrete details (numbers, names, what they actually did). Never generic advice like "hard work pays off" or "follow your passion". Plain everyday words, no hype, no buzzwords. Only what is in the notes and transcript.',
+        'Return JSON {"headline": "the lesson in 3 to 8 plain words, like a friend would say it", "detail": "one or two short sentences in the third person showing exactly what they did and how it played out"}. If nothing useful came up, return {"headline": "", "detail": ""}.',
       ].filter(Boolean).join('\n\n');
       let r = null;
-      try { r = await S.sample.json(prompt, { modelTier: 'quick' }); } catch (e) { break; }
+      try { r = await S.sample.json(prompt, { modelTier: 'default' }); } catch (e) { break; }
       if (!r) continue;
-      let quote = String(r.quote || '').trim().replace(/^["“]|["”]$/g, '');
-      if (quote && !(ownerText && normTx(ownerText).includes(normTx(quote)))) quote = ''; // only exact words get quote marks
-      const story = { v: 1, headline: String(r.headline || '').trim().slice(0, 60), quote: quote.slice(0, 240), story: String(r.story || '').trim().slice(0, 260), at: nowIso() };
-      if (!story.quote && !story.story) continue;
+      const story = !r.headline || !r.detail ? { v: 2, none: true, at: nowIso() } : { v: 2, headline: String(r.headline).trim().replace(/[.]$/, '').slice(0, 70), detail: String(r.detail).trim().slice(0, 320), at: nowIso() };
       try {
         if (it.kind === 'session') { await S.db.doc(`sessions/${it.id}`).update({ story }); it.src.story = story; }
         else await patch(it.id, { story });
@@ -2432,15 +2431,15 @@ function renderStories() {
   const card = it => {
     const s = it.story;
     const name = it.who || it.business;
-    const firstLine = String((it.kind === 'session' ? it.src.summary : it.src.call_notes) || '').split(/(?<=[.!?])\s/)[0];
-    const body = !s ? (STORY.tried.has(it.id) && !STORY.busy ? `<p class="st-story">${esc(firstLine)}</p>` : `<div class="st-wait"><i></i><i></i><i></i></div>`) : s.quote ? `<blockquote class="st-quote">${esc(s.quote)}</blockquote>` : `<p class="st-story">${esc(s.story)}</p>`;
+    const ok = s && (s.v || 0) >= 2;
+    const body = ok ? `<h3 class="st-lesson">${esc(s.headline)}</h3><p class="st-story">${esc(s.detail)}</p>` : `<div class="st-wait"><i></i><i></i><i></i></div>`;
     return `<article class="st-card" style="--h:${hue(name)}" ${it.kind === 'session' ? `data-call-open="${esc(it.id)}"` : `data-open="${esc(it.id)}"`} tabindex="0" role="button">
-      ${s && s.headline ? `<div class="st-head">${esc(s.headline)}</div>` : ''}
+      <div class="st-head">What ${esc((it.who || it.business).split(' ')[0])} taught you</div>
       ${body}
       <footer><span class="cv-av" style="--h:${hue(name)}">${esc(ini(name))}</span><span><b>${esc(name)}</b><small>${esc(it.business)}${it.town ? ' · ' + esc(it.town) : ''}${it.at ? ' · ' + esc(new Date(it.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) : ''}</small></span></footer>
     </article>`;
   };
-  return `<div class="st-intro"><h2>Stories</h2><p>The best line from each owner you've talked to. Lines in quotes are exactly what they said on the call.</p></div><div class="st-wall">${items.map(card).join('')}</div>`;
+  return `<div class="st-intro"><h2>Lessons</h2><p>The most useful thing each owner you've talked to taught you about running a business.</p></div><div class="st-wall">${items.map(card).join('')}</div>`;
 }
 
 
@@ -2448,15 +2447,16 @@ function renderStories() {
 function featuredStory() {
   if (S.readOnly || !S.calls) return '';
   const items = storyItems();
-  const it = items.find(x => x.story && (x.story.quote || x.story.story));
+  const it = items.find(x => x.story && (x.story.v || 0) >= 2);
   if (!it) { if (items.length) setTimeout(storyFill, 0); return ''; }
   const s = it.story, name = it.who || it.business;
   const hue = [...String(name)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
   return `<button class="cv-story" style="--h:${hue}" data-tab="stories">
-    <span class="cv-story-l"><span class="cv-eyebrow">From your calls${s.headline ? ' · ' + esc(s.headline) : ''}</span>
-      ${s.quote ? `<q>${esc(s.quote)}</q>` : `<span class="cv-story-t">${esc(s.story)}</span>`}
+    <span class="cv-story-l"><span class="cv-eyebrow">What ${esc(name.split(' ')[0])} taught you</span>
+      <span class="cv-story-h">${esc(s.headline)}</span>
+      <span class="cv-story-t">${esc(s.detail)}</span>
       <span class="cv-story-who">${esc(name)}, ${esc(it.business)}</span></span>
-    <span class="cv-story-r">All ${items.length} stories →</span></button>`;
+    <span class="cv-story-r">All ${items.length} lessons →</span></button>`;
 }
 
 function renderTabs() {
@@ -2468,7 +2468,7 @@ function renderTabs() {
     ['replies', 'Replies', ps.filter(p => p.status === 'replied' || (p.status === 'not_interested' && p.replied_at)).length],
     ['activity', 'Activity', null],
     ...(S.readOnly ? [] : [['calls', 'Calls', S.calls ? realCalls().length : null]]),
-    ...(S.readOnly ? [] : [['stories', 'Stories', null]]),
+    ...(S.readOnly ? [] : [['stories', 'Lessons', null]]),
     ['crm', 'My CRM', S.crmMine ? S.crmMine.length : null],
     ['board', 'Class board', S.crmBoard ? new Set(S.crmBoard.map(o => (o.owner || {}).name || '')).size : null],
   ];
