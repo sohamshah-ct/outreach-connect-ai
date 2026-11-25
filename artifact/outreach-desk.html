@@ -392,6 +392,22 @@ table.list a{color:var(--info); text-decoration:none;}
 .ib-pill.quiet{border-style:dashed;}
 
 
+
+.cv-cta{margin-top:16px; display:inline-flex; align-items:center; gap:12px; border:0; border-radius:999px; padding:10px 18px 10px 10px; background:var(--ink); color:var(--paper); font:600 15px var(--sans); cursor:pointer; box-shadow:0 10px 24px -12px rgba(0,0,0,.5); transition:transform .15s, box-shadow .15s;}
+.cv-cta:hover{transform:translateY(-1px); box-shadow:0 14px 28px -12px rgba(0,0,0,.55);}
+.cv-cta-n{min-width:30px; height:30px; padding:0 8px; border-radius:999px; display:grid; place-items:center; background:var(--crimson); color:#fff; font:700 14px var(--mono);}
+.cv-cta-arrow{font-size:18px; transition:transform .15s;}
+.cv-cta:hover .cv-cta-arrow{transform:translateX(3px);}
+.cv-story{display:flex; align-items:center; justify-content:space-between; gap:20px; width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); padding:18px 28px; cursor:pointer; color:inherit; font:inherit;
+  background:linear-gradient(90deg, hsl(var(--h) 70% 50% / .12), transparent 70%), var(--paper);}
+.cv-story:hover{background:linear-gradient(90deg, hsl(var(--h) 70% 50% / .18), transparent 70%), var(--paper);}
+.cv-story-l{display:flex; flex-direction:column; gap:6px; min-width:0;}
+.cv-story q{font-family:var(--serif); font-size:19px; line-height:1.35; color:var(--ink); quotes:"“" "”";}
+.cv-story q::before,.cv-story q::after{color:hsl(var(--h) 60% 50%);}
+.cv-story-t{font-size:16px; line-height:1.45; color:var(--ink-2);}
+.cv-story-who{font-size:13px; color:var(--muted);}
+.cv-story-r{white-space:nowrap; font-size:13px; font-weight:600; color:var(--ink-2);}
+@media (max-width:760px){ .cv-story{flex-direction:column; align-items:flex-start; padding:16px 18px;} .cv-story q{font-size:17px;} .cv-cta{width:100%; justify-content:space-between;} }
 /* Stories wall */
 .st-intro{margin:6px 0 16px;}
 .st-intro h2{margin:0; font-family:var(--serif); font-size:26px; color:var(--ink);}
@@ -2157,13 +2173,14 @@ function renderNotice() {
         <span class="cv-eyebrow">${esc(new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))}</span>
         <h2 class="cv-h">${esc(headline.charAt(0).toUpperCase() + headline.slice(1))}.</h2>
         <div class="cv-steps">${step(everReplied, 'wrote back', everReplied, 'reply')}${step(everTalked, 'talked', everReplied, 'talked')}${step(nWorking, 'working with', everReplied, 'working')}</div>
+        ${waiting.length && !S.readOnly ? `<button class="cv-cta" data-swopen="1"><span class="cv-cta-n">${waiting.length}</span><span>Swipe through your replies</span><span class="cv-cta-arrow">→</span></button>` : ''}
       </div>
       ${next ? (() => { const x = nyParts(next.at); const soon = next.at.getTime() - Date.now() < 30 * 60000; return `<div class="cv-next${soon ? ' soon' : ''}" data-open="${esc(next.p.id)}" role="button" tabindex="0">
         <span class="cv-date"><small>${esc(x.wd)}</small><b>${esc(x.d)}</b><small>${esc(x.mo)}</small></span>
         <span class="cv-next-t"><span class="cv-eyebrow">Next call · ${esc(rel(next.at))}</span><b>${esc(next.p.contact_name || shortName(next.p.name))}</b><span>${esc(shortName(next.p.name))} · ${esc(x.t)}${isTeamsCall(next.p) ? ' · Teams' : ''}</span>
           ${isTeamsCall(next.p) && !S.readOnly ? `<button class="btn ${soon ? 'solid' : ''} sm cv-join" data-join-teams="${esc(next.p.id)}">${soon ? 'Join now' : 'Join on Teams'}</button>` : ''}</span>
       </div>`; })() : ''}
-    </div>`;
+    </div>${featuredStory()}`;
     const dotOf = { reply: 'var(--crimson)', calls: 'var(--ok)', working: 'var(--navy)', talked: 'var(--info)', theirs: 'var(--muted)', later: 'var(--line-strong)' };
     html += `<section class="cv">
       ${hero}
@@ -2403,7 +2420,7 @@ async function storyFill() {
       } catch (e) { /* try again next time */ }
     }
   } finally { STORY.busy = false; }
-  if (S.tab === 'stories' && todo.length) renderView();
+  if (todo.length) { if (S.tab === 'stories') renderView(); renderNotice(); }
 }
 function renderStories() {
   if (!S.calls) return emptyView('Loading…', '');
@@ -2424,6 +2441,22 @@ function renderStories() {
     </article>`;
   };
   return `<div class="st-intro"><h2>Stories</h2><p>The best line from each owner you've talked to. Lines in quotes are exactly what they said on the call.</p></div><div class="st-wall">${items.map(card).join('')}</div>`;
+}
+
+
+// The newest story, shown big at the top of the desk; the rest live on the Stories tab.
+function featuredStory() {
+  if (S.readOnly || !S.calls) return '';
+  const items = storyItems();
+  const it = items.find(x => x.story && (x.story.quote || x.story.story));
+  if (!it) { if (items.length) setTimeout(storyFill, 0); return ''; }
+  const s = it.story, name = it.who || it.business;
+  const hue = [...String(name)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
+  return `<button class="cv-story" style="--h:${hue}" data-tab="stories">
+    <span class="cv-story-l"><span class="cv-eyebrow">From your calls${s.headline ? ' · ' + esc(s.headline) : ''}</span>
+      ${s.quote ? `<q>${esc(s.quote)}</q>` : `<span class="cv-story-t">${esc(s.story)}</span>`}
+      <span class="cv-story-who">${esc(name)}, ${esc(it.business)}</span></span>
+    <span class="cv-story-r">All ${items.length} stories →</span></button>`;
 }
 
 function renderTabs() {
@@ -3605,7 +3638,7 @@ document.addEventListener('click', async e => {
   const t = e.target;
   if (S.readOnly && t.closest('[data-act], [data-mark], [data-gdraft], #skipWeak, #sendQueue')) { e.preventDefault(); toast('View only: this desk is shared for looking, not sending.'); return; }
   const tab = t.closest('[data-tab]');
-  if (tab) { S.tab = tab.dataset.tab; lsSet('outreach-tab', S.tab); render(); return; }
+  if (tab) { S.tab = tab.dataset.tab; lsSet('outreach-tab', S.tab); render(); if (tab.classList.contains('cv-story')) { const tb = $('#tabs'); if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
   const gd = t.closest('[data-gdraft]');
   if (gd) { const p = S.prospects.find(x => x.id === gd.dataset.gdraft); if (p) sendReadyReply(p).catch(err => toast(err && err.code ? mcpMessage(err, GMAIL) : err.message, { err: true })); return; }
   const bw = t.closest('[data-boardwho]');
