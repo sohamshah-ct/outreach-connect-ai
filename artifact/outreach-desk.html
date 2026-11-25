@@ -677,6 +677,23 @@ h1,h2,h3{font-weight:600; letter-spacing:-.01em;}
 .radar-legend{display:flex; gap:8px 14px; flex-wrap:wrap; font-size:13.5px; color:#CFE0F5;}
 .radar-legend span{display:inline-flex; align-items:center; gap:7px;}
 .radar-legend i{width:11px; height:11px; border-radius:50%; display:inline-block;}
+
+.map-panel.towns .map-wrap{aspect-ratio:auto; max-height:none; height:100%; min-height:440px;}
+@media (max-width:900px){ .map-panel.towns .map-wrap{height:auto; aspect-ratio:1/0.9; min-height:0;} }
+.map-mode{display:inline-flex; gap:3px; padding:3px; border-radius:999px; background:rgba(255,255,255,.06); align-self:flex-start;}
+.map-mode button{border:0; background:transparent; color:#8FB3CF; font:600 12.5px var(--sans); padding:6px 12px; border-radius:999px; cursor:pointer;}
+.map-mode button.on{background:rgba(60,224,240,.16); color:#EEF5FF;}
+.map-insight{font-size:13.5px; line-height:1.55; color:#CFE0F5; background:rgba(60,224,240,.07); border:1px solid rgba(60,224,240,.2); border-radius:12px; padding:10px 12px;}
+.map-insight b{color:#EEF5FF;}
+.tw-row{display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"n r" "b b" "s s"; gap:5px 10px; background:rgba(255,255,255,.04); border:1px solid transparent; border-radius:12px; padding:9px 12px; cursor:pointer; color:#EEF5FF; font:inherit; text-align:left; width:100%; transition:background .15s, border-color .15s;}
+.tw-row:hover,.tw-row.on{background:rgba(60,224,240,.12); border-color:rgba(60,224,240,.5);}
+.tw-name{grid-area:n; font-size:14.5px; font-weight:600;}
+.tw-rate{grid-area:r; font:600 14px var(--mono); color:#FF9A86; font-variant-numeric:tabular-nums;}
+.tw-bar{grid-area:b; height:4px; border-radius:4px; background:rgba(255,255,255,.07); overflow:hidden;}
+.tw-bar i{display:block; height:100%; border-radius:4px; background:#FF7A66;}
+.tw-sub{grid-area:s; font-size:12px; color:#8FB3CF;}
+.state-list{max-height:430px; overflow:auto;}
+.lg-bub{background:transparent; border:1.5px solid #FF9A86;} .lg-rate{background:#FF7A66;} .lg-call{background:#6FDCA0;}
 .lg-ready{background:#F4F7FB;} .lg-sent{background:#3CE0F0;} .lg-reply{background:#FF7A66;} .lg-check{background:#F2C766;} .lg-other{background:#5F7396;}
 .map-side .live{color:#8FB3CF;}
 .hero-status{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
@@ -863,8 +880,11 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
         <div class="radar-tip" id="radarTip" hidden></div>
       </div>
       <aside class="map-side">
-        <div class="eyebrow">Businesses by state · click to filter</div>
+        <div class="map-mode" id="mapMode"><button data-mapmode="towns">Your towns</button><button data-mapmode="ne">All of New England</button></div>
+        <div class="eyebrow" id="mapHead">Businesses by state · click to filter</div>
+        <div class="map-insight" id="mapInsight" hidden></div>
         <div class="state-list" id="stateList"></div>
+        <div class="radar-legend tw-legend" id="townLegend" style="display:none"><span><i class="lg-bub"></i>Bigger = more businesses</span><span><i class="lg-rate"></i>Brighter = more wrote back</span><span><i class="lg-call"></i>Calls you've had</span></div>
         <div class="radar-legend" id="radarLegend">
           <span><i class="lg-ready"></i>Ready to review</span>
           <span><i class="lg-sent"></i>Emailed</span>
@@ -3366,20 +3386,133 @@ function radarData() {
   const counts = {};
   for (const p of S.prospects) { const st = stateOf(p) || '?'; counts[st] = (counts[st] || 0) + 1; }
   const far = S.prospects.filter(p => !inClassArea(p)).length;
-  const sig = JSON.stringify([counts, S.state]);
+  const towns = R_STATE.mode === 'towns';
+  if (towns) R_STATE.towns = townStats();
+  const sig = JSON.stringify([counts, S.state, S.town, R_STATE.mode, towns ? R_STATE.towns.map(t => [t.key, t.found, t.emailed, t.replied, t.talked, t.ready]) : 0]);
   if (sig === R_STATE.sig) return;
   R_STATE.sig = sig;
   const list = document.getElementById('stateList');
   if (!list) return;
+  document.querySelectorAll('#mapMode [data-mapmode]').forEach(b => b.classList.toggle('on', b.dataset.mapmode === R_STATE.mode));
+  const head = document.getElementById('mapHead'); if (head) head.textContent = towns ? 'Towns · best reply rate first · click to filter' : 'Businesses by state · click to filter';
+  const tl = document.getElementById('townLegend'), rl = document.getElementById('radarLegend');
+  if (tl) tl.style.display = towns ? '' : 'none'; if (rl) rl.style.display = towns ? 'none' : '';
+  const mp = document.querySelector('.map-panel'); if (mp) { const was = mp.classList.contains('towns'); mp.classList.toggle('towns', towns); if (was !== towns) { R_STATE.base = null; requestAnimationFrame(() => mapFrame(performance.now())); } }
+  const cvs = document.getElementById('radar'); if (cvs) cvs.setAttribute('aria-label', towns ? 'Map of your towns: bubble size is how many businesses, brightness is the share that wrote back' : 'Map of businesses in New England and New York');
+  if (towns) { list.innerHTML = townsSide(); return; }
+  const ins = document.getElementById('mapInsight'); if (ins) ins.hidden = true;
   list.innerHTML = CLASS_STATES.map(st => `<button class="st-row${S.state === st ? ' on' : ''}" data-st="${st}"><b>${st}</b><span>${esc(STATE_NAMES[st])}</span><em>${counts[st] || 0}</em></button>`).join('')
     + (far ? `<button class="st-row far${S.state === 'outside' ? ' on' : ''}" data-st="outside" title="Found by the research but outside the area the class works in"><b>US</b><span>Outside the class area</span><em>${far}</em></button>` : '');
 }
+
+// ---------- Map, "Your towns" view: where people write back, and where you haven't looked ----------
+R_STATE.mode = lsGet('map-mode') || 'towns';
+const EMAILED = new Set(['sent', 'followed_up', 'replied', 'not_interested', 'bounced', 'gone_cold']);
+function townStats() {
+  const m = new Map();
+  for (const p of S.prospects) {
+    if (stateOf(p) !== 'CT') continue;
+    const key = String(p.town || '').toLowerCase().trim();
+    const ll = TOWN_LL[key]; if (!ll) continue;
+    let t = m.get(key);
+    if (!t) { t = { key, label: placeLabel(p), name: p.town, ll, found: 0, emailed: 0, replied: 0, talked: 0, ready: 0 }; m.set(key, t); }
+    t.found++;
+    if (EMAILED.has(p.status) || p.sent_at) t.emailed++;
+    if (p.replied_at && !(p.auto_reply_at && !['replied', 'not_interested'].includes(p.status))) t.replied++;
+    if (p.called_at || p.thanked_at) t.talked++;
+    if (p.status === 'ready' || p.status === 'queued') t.ready++;
+  }
+  const out = [...m.values()];
+  out.forEach(t => { t.rate = t.emailed ? t.replied / t.emailed : 0; });
+  return out;
+}
+function townsSide() {
+  const ts = R_STATE.towns || [];
+  const ranked = ts.filter(t => t.emailed >= 8).sort((a, b) => b.rate - a.rate || b.replied - a.replied);
+  const rest = ts.filter(t => t.emailed < 8).sort((a, b) => b.found - a.found);
+  const best = ranked[0];
+  const most = [...ts].sort((a, b) => b.ready - a.ready)[0];
+  const ins = document.getElementById('mapInsight');
+  const lines = [];
+  if (best && best.replied) lines.push(`<b>${esc(best.name)}</b> writes back the most: ${Math.round(best.rate * 100)}% (${best.replied} of ${best.emailed}).`);
+  if (most && most.ready) lines.push(`<b>${esc(most.name)}</b> has the most left to send: ${most.ready} ready.`);
+  const fresh = rest.filter(t => !t.emailed && t.found)[0];
+  if (fresh) lines.push(`You haven't emailed anyone in <b>${esc(fresh.name)}</b> yet.`);
+  ins.hidden = !lines.length; ins.innerHTML = lines.join('<br>');
+  const row = t => `<button class="tw-row${S.town === t.label ? ' on' : ''}" data-town="${esc(t.label)}">
+      <span class="tw-name">${esc(t.name)}</span>
+      <span class="tw-rate">${t.emailed ? Math.round(t.rate * 100) + '%' : '·'}</span>
+      <span class="tw-bar"><i style="width:${Math.round(Math.min(1, t.rate / 0.15) * 100)}%"></i></span>
+      <span class="tw-sub">${t.emailed ? `${t.replied} of ${t.emailed} wrote back` : 'Not emailed yet'}${t.ready ? ` · ${t.ready} ready` : ''}${t.talked ? ` · ${t.talked} call${t.talked === 1 ? '' : 's'}` : ''}</span></button>`;
+  return [...ranked, ...rest].map(row).join('');
+}
+function townLayout(w, h) {
+  const ts = R_STATE.towns || [];
+  if (!ts.length) return null;
+  let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180;
+  for (const t of ts) { la0 = Math.min(la0, t.ll[0]); la1 = Math.max(la1, t.ll[0]); lo0 = Math.min(lo0, t.ll[1]); lo1 = Math.max(lo1, t.ll[1]); }
+  const padLa = Math.max(.06, (la1 - la0) * .18), padLo = Math.max(.08, (lo1 - lo0) * .18);
+  la0 -= padLa; la1 += padLa; lo0 -= padLo; lo1 += padLo;
+  const cos = Math.cos((la0 + la1) / 2 * Math.PI / 180);
+  const sx = w / ((lo1 - lo0) * cos), sy = h / (la1 - la0), s = Math.min(sx, sy);
+  const ox = (w - (lo1 - lo0) * cos * s) / 2, oy = (h - (la1 - la0) * s) / 2;
+  return { X: lon => ox + (lon - lo0) * cos * s, Y: lat => oy + (la1 - lat) * s, s };
+}
+function drawTowns(cv, ctx, w, h, dpr) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const L = townLayout(w, h); if (!L) return;
+  // Light grid every 0.1 degree, then the Connecticut border for reference.
+  ctx.strokeStyle = 'rgba(120,210,230,.06)'; ctx.lineWidth = 1;
+  for (let lo = -73.5; lo <= -71.5; lo += .1) { const x = L.X(lo); if (x < 0 || x > w) continue; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (let la = 41; la <= 42.6; la += .1) { const y = L.Y(la); if (y < 0 || y > h) continue; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  const inv = (x, y) => [L.X(x / (NE_MAP.k * NE_MAP.scale) + NE_MAP.W), L.Y(NE_MAP.N - y / NE_MAP.scale)];
+  ctx.beginPath();
+  for (const r of (NE_MAP.states.CT || [])) { let [a, b] = inv(r[0], r[1]); ctx.moveTo(a, b); for (let i = 2; i < r.length; i += 2) { [a, b] = inv(r[i], r[i + 1]); ctx.lineTo(a, b); } ctx.closePath(); }
+  ctx.fillStyle = 'rgba(60,224,240,.04)'; ctx.fill(); ctx.strokeStyle = 'rgba(120,210,230,.35)'; ctx.stroke();
+  const ux = L.X(-72.2495), uy = L.Y(41.8084);
+  ctx.strokeStyle = '#3CE0F0'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ux, uy, 5, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(60,224,240,.8)'; ctx.font = '600 11px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('UConn', ux + 8, uy - 8);
+  const unit = Math.max(1.6, Math.min(w, h) / 230);
+  const ts = [...(R_STATE.towns || [])].sort((a, b) => b.found - a.found);
+  for (const t of ts) {
+    const x = L.X(t.ll[1]), y = L.Y(t.ll[0]);
+    const r = 7 + Math.sqrt(t.found) * unit;
+    t.sx = x; t.sy = y; t.r = r;
+    const k = t.emailed ? Math.min(1, t.rate / 0.15) : 0;
+    const on = S.town === t.label, hov = R_STATE.hover === t;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = t.emailed ? `rgba(255,122,102,${.14 + .62 * k})` : 'rgba(143,179,207,.10)';
+    ctx.fill();
+    ctx.lineWidth = on || hov ? 2.5 : 1.2;
+    ctx.setLineDash(t.emailed ? [] : [4, 4]);
+    ctx.strokeStyle = on ? '#3CE0F0' : hov ? '#EEF5FF' : t.emailed ? `rgba(255,150,130,${.45 + .5 * k})` : 'rgba(143,179,207,.55)';
+    ctx.stroke(); ctx.setLineDash([]);
+    if (t.talked) { ctx.fillStyle = '#6FDCA0'; ctx.beginPath(); ctx.arc(x + r * .72, y - r * .72, 4 + Math.min(4, t.talked), 0, Math.PI * 2); ctx.fill(); }
+    ctx.textAlign = 'center'; ctx.fillStyle = '#EEF5FF'; ctx.font = '600 12.5px "Atkinson Hyperlegible", system-ui, sans-serif';
+    ctx.fillText(t.name, x, y - 1);
+    ctx.fillStyle = 'rgba(207,224,245,.8)'; ctx.font = '500 11px "JetBrains Mono", monospace';
+    ctx.fillText(t.emailed ? `${Math.round(t.rate * 100)}% · ${t.found}` : `${t.found} found`, x, y + 13);
+  }
+}
+function setTownFilter(label) {
+  S.town = S.town === label ? '' : label; S.state = '';
+  const sel = document.getElementById('fTown'); if (sel) sel.value = S.town;
+  const st = document.getElementById('fState'); if (st) st.value = '';
+  R_STATE.sig = ''; radarData(); renderTabs(); renderView(); mapFrame(performance.now());
+  toast(S.town ? `Showing ${S.town} only. Click it again to show every town.` : 'Showing every town.');
+}
+function setMapMode(m) {
+  R_STATE.mode = m; lsSet('map-mode', m); R_STATE.sig = ''; R_STATE.hover = null;
+  radarData(); mapStop(); mapFrame(performance.now()); if (m === 'ne') mapStart();
+}
+
 // The map only animates while it's on screen and the tab is in front, at about 30 frames a second.
 // The outline (graticule, states, labels) is drawn once into a cached layer; each frame only adds
 // the scan line and the dots, and the dots' glow is a cheap halo instead of canvas shadowBlur.
 R_STATE.visible = true; R_STATE.last = 0; R_STATE.base = null; R_STATE.baseKey = '';
 function mapStop() { if (R_STATE.raf) cancelAnimationFrame(R_STATE.raf); R_STATE.raf = 0; }
-function mapStart() { if (!R_STATE.raf && R_STATE.visible && !document.hidden) R_STATE.raf = requestAnimationFrame(mapFrame); }
+function mapStart() { if (R_STATE.mode === 'towns') { if (!R_STATE.raf) R_STATE.raf = requestAnimationFrame(t => { R_STATE.raf = 0; mapFrame(t); }); return; } if (!R_STATE.raf && R_STATE.visible && !document.hidden) R_STATE.raf = requestAnimationFrame(mapFrame); }
 function mapBase(w, h, dpr, sc, ox, oy) {
   const key = [w, h, dpr, S.state, R_STATE.ver].join('|');
   if (R_STATE.base && R_STATE.baseKey === key) return R_STATE.base;
@@ -3430,6 +3563,7 @@ function mapFrame(t) {
   if (!w || !h) { if (animate) R_STATE.raf = requestAnimationFrame(mapFrame); return; }
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   const ctx = cv.getContext('2d');
+  if (R_STATE.mode === 'towns') { drawTowns(cv, ctx, w, h, dpr); return; }
   const sc = Math.min(w / NE_MAP.w, h / NE_MAP.h);
   const ox = (w - NE_MAP.w * sc) / 2, oy = (h - NE_MAP.h * sc) / 2;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -3461,6 +3595,7 @@ function radarHit(e) {
   const cv = document.getElementById('radar');
   const r = cv.getBoundingClientRect();
   const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (R_STATE.mode === 'towns') { let hit = null; for (const t of (R_STATE.towns || [])) { if (t.sx != null && (t.sx - x) ** 2 + (t.sy - y) ** 2 <= (t.r + 4) ** 2 && (!hit || t.r < hit.r)) hit = t; } return hit; }
   let best = null, bd = 12 * 12;
   for (const b of R_STATE.blips) { const d = (b.sx - x) ** 2 + (b.sy - y) ** 2; if (d < bd) { bd = d; best = b; } }
   return best;
@@ -3480,7 +3615,11 @@ function radarInit() {
   cv.addEventListener('mousemove', e => {
     const best = radarHit(e);
     R_STATE.hover = best;
-    if (best) {
+    if (best && R_STATE.mode === 'towns') {
+      tip.hidden = false; tip.style.left = `${best.sx}px`; tip.style.top = `${best.sy - best.r + 6}px`;
+      tip.innerHTML = `${esc(best.name)}<small>${best.found} found · ${best.emailed} emailed · ${best.replied} wrote back${best.emailed ? ` (${Math.round(best.rate * 100)}%)` : ''}${best.talked ? ` · ${best.talked} call${best.talked === 1 ? '' : 's'}` : ''}${best.ready ? ` · ${best.ready} ready to send` : ''}</small>`;
+      cv.style.cursor = 'pointer';
+    } else if (best) {
       tip.hidden = false; tip.style.left = `${best.sx}px`; tip.style.top = `${best.sy}px`;
       tip.innerHTML = `${esc(best.p.name)}<small>${esc(placeLabel(best.p) || '')} · ${esc(STATUS_WORD[best.p.status] || best.p.status || '')}</small>`;
       cv.style.cursor = 'pointer';
@@ -3488,8 +3627,9 @@ function radarInit() {
     if (!R_STATE.raf) mapFrame(performance.now());
   });
   cv.addEventListener('mouseleave', () => { R_STATE.hover = null; tip.hidden = true; });
-  cv.addEventListener('click', e => { const best = radarHit(e); if (best) openDrawer(best.p.id); });
-  document.getElementById('stateList').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b) setStateFilter(b.dataset.st); });
+  cv.addEventListener('click', e => { const best = radarHit(e); if (!best) return; if (R_STATE.mode === 'towns') setTownFilter(best.label); else openDrawer(best.p.id); });
+  document.getElementById('stateList').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b) { setStateFilter(b.dataset.st); return; } const t = e.target.closest('[data-town]'); if (t) setTownFilter(t.dataset.town); });
+  document.getElementById('mapMode').addEventListener('click', e => { const b = e.target.closest('[data-mapmode]'); if (b) setMapMode(b.dataset.mapmode); });
   if ('IntersectionObserver' in window) new IntersectionObserver(es => { R_STATE.visible = es[es.length - 1].isIntersecting; if (R_STATE.visible) mapStart(); else mapStop(); }, { rootMargin: '80px' }).observe(cv);
   document.addEventListener('visibilitychange', () => { if (document.hidden) mapStop(); else mapStart(); });
   window.addEventListener('resize', () => { R_STATE.base = null; if (!R_STATE.raf) mapFrame(performance.now()); }, { passive: true });
