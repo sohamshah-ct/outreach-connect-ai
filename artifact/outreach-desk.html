@@ -390,6 +390,68 @@ table.list a{color:var(--info); text-decoration:none;}
 .ib-pill b{font-weight:600; color:var(--ink); margin-right:3px;}
 .ib-pill:hover{border-color:var(--ink-2);}
 .ib-pill.quiet{border-style:dashed;}
+
+
+/* Stories wall */
+.st-intro{margin:6px 0 16px;}
+.st-intro h2{margin:0; font-family:var(--serif); font-size:26px; color:var(--ink);}
+.st-intro p{margin:4px 0 0; color:var(--muted); font-size:14px;}
+.st-wall{columns:3 300px; column-gap:16px;}
+.st-card{break-inside:avoid; margin:0 0 16px; position:relative; border:1px solid var(--line); border-radius:18px; padding:20px 20px 16px; background:linear-gradient(160deg, hsl(var(--h) 70% 50% / .10), transparent 55%), var(--paper); box-shadow:var(--shadow); cursor:pointer; transition:transform .15s, border-color .15s;}
+.st-card:hover,.st-card:focus-visible{transform:translateY(-2px); border-color:var(--line-strong); outline:none;}
+.st-head{font:600 10.5px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:hsl(var(--h) 55% 40%); margin-bottom:10px;}
+.st-quote{margin:0 0 16px; font-family:var(--serif); font-size:20px; line-height:1.35; color:var(--ink); quotes:"“" "”";}
+.st-quote::before{content:open-quote; color:hsl(var(--h) 60% 50%); margin-right:2px;}
+.st-quote::after{content:close-quote; color:hsl(var(--h) 60% 50%);}
+.st-story{margin:0 0 16px; font-size:16px; line-height:1.5; color:var(--ink-2);}
+.st-card footer{display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--line);}
+.st-card footer .cv-av{width:34px; height:34px; font-size:12.5px;}
+.st-card footer b{display:block; font-size:14px; color:var(--ink);}
+.st-card footer small{font-size:12px; color:var(--muted);}
+.st-wait{display:flex; gap:6px; padding:12px 0 18px;}
+.st-wait i{width:8px; height:8px; border-radius:50%; background:var(--line-strong); animation:stDot 1.2s infinite;}
+.st-wait i:nth-child(2){animation-delay:.15s} .st-wait i:nth-child(3){animation-delay:.3s}
+@keyframes stDot{0%,80%,100%{opacity:.3} 40%{opacity:1}}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .st-head{color:hsl(var(--h) 70% 72%);} }
+:root[data-theme="dark"] .st-head{color:hsl(var(--h) 70% 72%);}
+/* Quick review: one card at a time, swipe to decide. */
+.sw{position:fixed; inset:0; z-index:66; background:var(--paper); display:flex; flex-direction:column; padding:calc(12px + env(safe-area-inset-top, 0px)) 16px calc(14px + env(safe-area-inset-bottom, 0px)); overflow:hidden;}
+.sw[hidden]{display:none;}
+.sw-top{display:flex; align-items:center; gap:12px; max-width:620px; width:100%; margin:0 auto;}
+.sw-count{font:600 12px var(--mono); color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums;}
+.sw-bar{flex:1; height:4px; border-radius:4px; background:var(--wash-2); overflow:hidden;}
+.sw-bar i{display:block; height:100%; background:linear-gradient(90deg, var(--info), var(--ok)); transition:width .3s;}
+.sw-x{border:1px solid var(--line); background:var(--paper); color:var(--ink); width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:15px;}
+.sw-stage{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:14px 0;}
+.sw-card{position:relative; width:100%; max-width:620px; max-height:100%; overflow:auto; background:var(--paper); border:1px solid var(--line); border-radius:22px; box-shadow:0 18px 50px -20px rgba(0,0,0,.45); padding:22px 22px 24px; touch-action:pan-y; user-select:none; transition:transform .22s ease; --send:0; --later:0;}
+.sw-card.drag{transition:none; cursor:grabbing;}
+.sw-card.fly{transition:transform .22s ease-in, opacity .22s; opacity:0;}
+.sw-stamp{position:absolute; top:12px; font:800 15px var(--mono); letter-spacing:.14em; text-transform:uppercase; padding:6px 12px; border-radius:10px; border:2px solid; pointer-events:none;}
+.sw-stamp.send{left:18px; color:var(--ok); border-color:var(--ok); opacity:var(--send); transform:rotate(-10deg);}
+.sw-stamp.later{right:18px; color:var(--muted); border-color:var(--muted); opacity:var(--later); transform:rotate(10deg);}
+.sw-head{display:flex; align-items:center; gap:14px; margin:30px 0 18px;}
+.sw-head .cv-av{width:48px; height:48px; font-size:17px;}
+.sw-head b{display:block; font-family:var(--serif); font-size:21px; color:var(--ink);}
+.sw-head span{font-size:13.5px; color:var(--muted);}
+.sw-label{font:600 10.5px var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:4px 0 8px;}
+.sw-said{margin:0 0 18px; padding:2px 0 2px 14px; border-left:3px solid var(--line-strong); font-size:16.5px; line-height:1.55; color:var(--ink); font-style:italic;}
+.sw-draft{white-space:pre-wrap; background:var(--wash); border-radius:14px; padding:14px 16px; font-size:15px; line-height:1.6; color:var(--ink);}
+.sw-none{color:var(--muted);}
+.sw-actions{display:flex; gap:10px; max-width:620px; width:100%; margin:0 auto;}
+.sw-btn{flex:1; border-radius:999px; padding:16px 10px; font:700 15px var(--sans); cursor:pointer; border:1px solid var(--line); background:var(--paper); color:var(--ink);}
+.sw-btn.send{background:var(--ok); border-color:var(--ok); color:#fff;}
+.sw-btn.send:disabled{opacity:.4; cursor:not-allowed;}
+.sw-btn.edit{flex:.7;}
+.sw-foot{display:flex; justify-content:space-between; align-items:center; max-width:620px; width:100%; margin:10px auto 0; font-size:12.5px; color:var(--muted);}
+.sw-link{border:0; background:none; color:var(--muted); text-decoration:underline; cursor:pointer; font:inherit; padding:4px 0;}
+.sw-done{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center;}
+.sw-done-mark{width:72px; height:72px; border-radius:50%; display:grid; place-items:center; background:var(--ok-soft); color:var(--ok); font-size:34px; font-weight:700; animation:swPop .4s ease;}
+.sw-done h2{margin:6px 0 0; font-family:var(--serif); font-size:26px; color:var(--ink);}
+.sw-done p{margin:0 0 10px; color:var(--muted);}
+@keyframes swPop{0%{transform:scale(.4); opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1); opacity:1}}
+.cv-quick{white-space:nowrap;}
+body.sw-on .toasts{top:calc(56px + env(safe-area-inset-top, 0px)); bottom:auto; z-index:80;}
+@media (prefers-reduced-motion: reduce){ .sw-card, .sw-card.fly{transition:none;} .sw-done-mark{animation:none;} }
 /* Conversations: a hero with where things stand and the next call, then one list at a time. */
 .cv{margin-top:16px; border:1px solid var(--line); border-radius:18px; background:var(--paper); box-shadow:var(--shadow); overflow:hidden;}
 .cv-hero{position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:center; padding:26px 28px 22px;
@@ -819,6 +881,7 @@ body.ro .sess-fab, body.ro [data-session]{display:none !important;}
 </aside>
 
 <button class="sess-fab" id="sessFab" hidden><i></i><span>Start a session</span></button>
+<section class="sw" id="swipe" aria-label="Quick review" hidden></section>
 <section class="sess" id="sess" aria-label="Live session"><div class="sess-wrap" id="sessBody"></div></section>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
@@ -2106,7 +2169,7 @@ function renderNotice() {
       ${hero}
       <div class="cv-top">
         <div class="cv-tabs" role="tablist">${TABS.map(t => `<button role="tab" aria-selected="${t.k === tab.k}" class="cv-tab${t.k === tab.k ? ' on' : ''}" data-pipetab="${t.k}"><i style="background:${dotOf[t.k]}"></i>${t.label}<span class="cv-n">${t.items.length}</span></button>`).join('')}</div>
-        ${tab.items.length ? `<span class="cv-note">${esc(tab.note)}</span>` : ''}</div>
+        ${tab.k === 'reply' && tab.items.length && !S.readOnly ? `<button class="btn solid sm cv-quick" data-swopen="1">Quick review</button>` : tab.items.length ? `<span class="cv-note">${esc(tab.note)}</span>` : ''}</div>
       ${tab.items.length ? `<ul class="cv-list">${shown.map(row).join('')}</ul>
       ${tab.items.length > shown.length ? `<button class="cv-more" data-pipeall="1">Show all ${tab.items.length}</button>` : tab.k === 'reply' && S.pipeAll && tab.items.length > LIMIT ? `<button class="cv-more" data-pipeall="0">Show fewer</button>` : ''}` : `<p class="cv-empty">Nothing to answer. You're caught up.</p>`}
     </section>`;
@@ -2196,6 +2259,173 @@ function renderChart() {
   svg.addEventListener('mouseleave', () => tip.classList.remove('on'));
 }
 
+
+// ---------- Quick review: one reply at a time, swipe right to send, left for later ----------
+// A swipe right is the approval for that one email. It waits 5 seconds with an Undo before it
+// actually goes, so a slip of the thumb never sends anything.
+const SW = { ids: [], i: 0, sent: 0, later: 0, pending: new Map() };
+function swOpen() {
+  const list = S.prospects.filter(p => needsAnswer(p)).sort((a, b) => String(a.replied_at).localeCompare(String(b.replied_at)));
+  SW.ids = list.map(p => p.id); SW.i = 0; SW.sent = 0; SW.later = 0;
+  const el = $('#swipe'); el.hidden = false; document.documentElement.style.overflow = 'hidden'; document.body.classList.add('sw-on');
+  swRender();
+}
+function swClose() { const el = $('#swipe'); el.hidden = true; el.innerHTML = ''; document.documentElement.style.overflow = ''; document.body.classList.remove('sw-on'); }
+function swRender() {
+  const el = $('#swipe');
+  const total = SW.ids.length;
+  const p = SW.i < total ? S.prospects.find(x => x.id === SW.ids[SW.i]) : null;
+  const top = `<div class="sw-top"><span class="sw-count">${total ? Math.min(SW.i + 1, total) : 0} of ${total}</span><div class="sw-bar"><i style="width:${total ? Math.round(100 * SW.i / total) : 100}%"></i></div><button class="sw-x" data-sw="close" aria-label="Close">✕</button></div>`;
+  if (!p) {
+    el.innerHTML = `${top}<div class="sw-done"><div class="sw-done-mark">✓</div><h2>You're through them</h2><p>${[SW.sent ? `${SW.sent} sent` : '', SW.later ? `${SW.later} for later` : ''].filter(Boolean).join(' · ') || 'Nothing left to answer.'}</p><button class="btn solid" data-sw="close">Back to the desk</button></div>`;
+    return;
+  }
+  const hasDraft = !!(p.reply_draft_id && p.reply_draft);
+  const who = p.contact_name || shortName(p.name);
+  el.innerHTML = `${top}
+    <div class="sw-stage"><article class="sw-card" id="swCard" tabindex="0">
+      <span class="sw-stamp send">Send</span><span class="sw-stamp later">Later</span>
+      <header class="sw-head"><span class="cv-av" style="--h:${[...String(who)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7)}">${esc(String(who).replace(/[^A-Za-z\s]/g, ' ').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?')}</span>
+        <div><b>${esc(who)}</b><span>${esc(shortName(p.name))}${p.town ? ' · ' + esc(p.town) : ''} · ${esc(daysAgoText(p.replied_at))}</span></div></header>
+      <div class="sw-label">They said</div>
+      <blockquote class="sw-said">${esc(saidLine(p) || p.reply_snippet || '')}</blockquote>
+      <div class="sw-label">Your reply</div>
+      <div class="sw-draft">${hasDraft ? esc(p.reply_draft) : '<span class="sw-none">No draft yet. Tap Edit to write one.</span>'}</div>
+    </article></div>
+    <div class="sw-actions">
+      <button class="sw-btn later" data-sw="later" title="Left arrow">← Later</button>
+      <button class="sw-btn edit" data-sw="edit" title="E">Edit</button>
+      <button class="sw-btn send" data-sw="send" ${hasDraft ? '' : 'disabled'} title="Right arrow">Send →</button>
+    </div>
+    <div class="sw-foot"><button class="sw-link" data-sw="noreply">No reply needed</button><span class="sw-hint">Swipe right to send, left for later</span></div>`;
+  swBind();
+}
+function daysAgoText(iso) { const d = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)); return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; }
+function swBind() {
+  const card = $('#swCard'); if (!card) return;
+  let x0 = null, y0 = 0, dx = 0, id = null;
+  card.addEventListener('pointerdown', e => { if (e.button) return; x0 = e.clientX; y0 = e.clientY; dx = 0; id = e.pointerId; card.setPointerCapture(id); card.classList.add('drag'); });
+  card.addEventListener('pointermove', e => {
+    if (x0 == null || e.pointerId !== id) return;
+    dx = e.clientX - x0; const dy = e.clientY - y0;
+    if (Math.abs(dy) > Math.abs(dx) * 1.3 && Math.abs(dx) < 20) return; // scrolling the draft
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
+    card.style.setProperty('--send', Math.max(0, Math.min(1, dx / 110)));
+    card.style.setProperty('--later', Math.max(0, Math.min(1, -dx / 110)));
+  });
+  const end = () => {
+    if (x0 == null) return; x0 = null; card.classList.remove('drag');
+    if (dx > 110 && !$('[data-sw="send"]').disabled) swAct('send');
+    else if (dx < -110) swAct('later');
+    else { card.style.transform = ''; card.style.setProperty('--send', 0); card.style.setProperty('--later', 0); }
+  };
+  card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+}
+function swFly(dir) { const c = $('#swCard'); if (!c) return Promise.resolve(); c.classList.add('fly'); c.style.transform = `translateX(${dir * 140}%) rotate(${dir * 18}deg)`; return new Promise(r => setTimeout(r, 220)); }
+async function swAct(a) {
+  const p = S.prospects.find(x => x.id === SW.ids[SW.i]);
+  if (a === 'close') { swClose(); return; }
+  if (!p) return;
+  if (a === 'edit') { swClose(); openDrawer(p.id); return; }
+  if (a === 'later') { await swFly(-1); SW.later++; SW.i++; swRender(); return; }
+  if (a === 'noreply') { await swFly(-1); patch(p.id, { answered_at: nowIso() }, 'Marked as no reply needed').catch(err => toast(err.message, { err: true })); SW.i++; swRender(); return; }
+  if (a === 'send') {
+    if (!(p.reply_draft_id && p.reply_draft) || S.readOnly) return;
+    await swFly(1); SW.sent++; SW.i++; swRender();
+    const who = p.contact_name || shortName(p.name);
+    const timer = setTimeout(() => { SW.pending.delete(p.id); sendReadyReply(p).catch(err => toast(err && err.code ? mcpMessage(err, GMAIL) : err.message, { err: true })); }, 5000);
+    SW.pending.set(p.id, timer);
+    toast(`Sending to ${who} in 5 seconds`, { undo: () => { clearTimeout(timer); SW.pending.delete(p.id); SW.sent = Math.max(0, SW.sent - 1); const k = SW.ids.indexOf(p.id); if (k >= 0) { SW.i = k; if ($('#swipe').hidden) { $('#swipe').hidden = false; document.documentElement.style.overflow = 'hidden'; document.body.classList.add('sw-on'); } swRender(); } toast(`Didn't send to ${who}.`); } });
+  }
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-sw]'); if (b) { e.preventDefault(); swAct(b.dataset.sw); return; } if (e.target.closest('[data-swopen]')) { e.preventDefault(); swOpen(); } });
+document.addEventListener('keydown', e => {
+  if ($('#swipe').hidden || e.target.closest('input, textarea')) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); const b = $('[data-sw="send"]'); if (b && !b.disabled) swAct('send'); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); swAct('later'); }
+  else if (e.key === 'e' || e.key === 'E') swAct('edit');
+  else if (e.key === 'Escape') swClose();
+});
+
+
+// ---------- Stories: the best line from each owner you've talked to ----------
+// One card per call. A line in quote marks is word for word from what they said on a recorded
+// call (checked against the transcript); otherwise it's a one-sentence story from your notes.
+const STORY = { busy: false, tried: new Set() };
+const normTx = s => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function storyItems() {
+  const calls = realCalls();
+  const out = [], seen = new Set();
+  for (const c of calls) {
+    if (!c.ended_at && !c.started_at) continue;
+    const p = c.prospect_id ? S.prospects.find(x => x.id === c.prospect_id) : null;
+    if (p && p.fit === 'no') continue;
+    const key = c.prospect_id || nameKey(c.business || '');
+    if (seen.has(key)) continue; seen.add(key);
+    out.push({ kind: 'session', id: c.id, p, who: c.person || (p && p.contact_name) || '', business: c.business || (p ? shortName(p.name) : ''), town: p ? p.town : '', at: c.ended_at || c.started_at, story: c.story || null, src: c });
+  }
+  for (const p of S.prospects) {
+    if (!(p.called_at || p.call_notes) || p.fit === 'no' || seen.has(p.id) || seen.has(nameKey(shortName(p.name)))) continue;
+    if (!p.call_notes) continue;
+    seen.add(p.id);
+    out.push({ kind: 'prospect', id: p.id, p, who: p.contact_name || '', business: shortName(p.name), town: p.town, at: p.called_at || p.updated_at, story: p.story || null, src: p });
+  }
+  return out.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+}
+async function storyFill() {
+  if (STORY.busy || S.readOnly || !S.sample || !S.db) return;
+  const todo = storyItems().filter(x => (!x.story || !x.story.v) && !STORY.tried.has(x.id)).slice(0, 4);
+  todo.forEach(x => STORY.tried.add(x.id));
+  if (!todo.length) return;
+  STORY.busy = true;
+  try {
+    for (const it of todo) {
+      const meN = sesMe();
+      const ownerLines = it.kind === 'session' ? (it.src.lines || []).filter(l => l && l.text && l.who && l.who !== meN && !new RegExp('\\b' + meN + '\\b', 'i').test(l.who)).map(l => l.text) : [];
+      const ownerText = ownerLines.join('\n').slice(0, 7000);
+      const notes = it.kind === 'session' ? [it.src.summary, ...(it.src.learned || [])].filter(Boolean).join('\n') : String(it.src.call_notes || '');
+      const prompt = [
+        `${me().name || 'A UConn student'} had a call with ${it.who || 'the owner'} of ${it.business}. He collects the most memorable part of each owner's story: how they got started, a turning point, or something they built or worked hard for. Never a task, tool, spreadsheet or process.`,
+        ownerText ? `WHAT THE OWNER SAID (speech-to-text; a few lines may really be the student talking, so skip anything that sounds like him introducing himself, asking a question or making small talk):\n${ownerText}` : '',
+        `NOTES FROM THE CALL:\n${notes.slice(0, 3000) || '(none)'}`,
+        'Return JSON {"headline": "3 to 6 plain words naming that moment, no quotes", "quote": "' + (ownerText ? 'one or two sentences copied EXACTLY, word for word, from the owner\'s lines above (max 220 characters); empty if nothing fits' : '') + '", "story": "one plain sentence in the third person telling that moment, using only what is above, no hype"}.',
+      ].filter(Boolean).join('\n\n');
+      let r = null;
+      try { r = await S.sample.json(prompt, { modelTier: 'quick' }); } catch (e) { break; }
+      if (!r) continue;
+      let quote = String(r.quote || '').trim().replace(/^["“]|["”]$/g, '');
+      if (quote && !(ownerText && normTx(ownerText).includes(normTx(quote)))) quote = ''; // only exact words get quote marks
+      const story = { v: 1, headline: String(r.headline || '').trim().slice(0, 60), quote: quote.slice(0, 240), story: String(r.story || '').trim().slice(0, 260), at: nowIso() };
+      if (!story.quote && !story.story) continue;
+      try {
+        if (it.kind === 'session') { await S.db.doc(`sessions/${it.id}`).update({ story }); it.src.story = story; }
+        else await patch(it.id, { story });
+      } catch (e) { /* try again next time */ }
+    }
+  } finally { STORY.busy = false; }
+  if (S.tab === 'stories' && todo.length) renderView();
+}
+function renderStories() {
+  if (!S.calls) return emptyView('Loading…', '');
+  const items = storyItems();
+  if (!items.length) return emptyView('No stories yet.', 'After each call, the best line from the owner shows up here.');
+  setTimeout(storyFill, 0);
+  const hue = s => [...String(s)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
+  const ini = s => String(s || '?').replace(/[^A-Za-z\s]/g, ' ').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+  const card = it => {
+    const s = it.story;
+    const name = it.who || it.business;
+    const firstLine = String((it.kind === 'session' ? it.src.summary : it.src.call_notes) || '').split(/(?<=[.!?])\s/)[0];
+    const body = !s ? (STORY.tried.has(it.id) && !STORY.busy ? `<p class="st-story">${esc(firstLine)}</p>` : `<div class="st-wait"><i></i><i></i><i></i></div>`) : s.quote ? `<blockquote class="st-quote">${esc(s.quote)}</blockquote>` : `<p class="st-story">${esc(s.story)}</p>`;
+    return `<article class="st-card" style="--h:${hue(name)}" ${it.kind === 'session' ? `data-call-open="${esc(it.id)}"` : `data-open="${esc(it.id)}"`} tabindex="0" role="button">
+      ${s && s.headline ? `<div class="st-head">${esc(s.headline)}</div>` : ''}
+      ${body}
+      <footer><span class="cv-av" style="--h:${hue(name)}">${esc(ini(name))}</span><span><b>${esc(name)}</b><small>${esc(it.business)}${it.town ? ' · ' + esc(it.town) : ''}${it.at ? ' · ' + esc(new Date(it.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) : ''}</small></span></footer>
+    </article>`;
+  };
+  return `<div class="st-intro"><h2>Stories</h2><p>The best line from each owner you've talked to. Lines in quotes are exactly what they said on the call.</p></div><div class="st-wall">${items.map(card).join('')}</div>`;
+}
+
 function renderTabs() {
   const ps = S.prospects;
   const tabs = [
@@ -2205,6 +2435,7 @@ function renderTabs() {
     ['replies', 'Replies', ps.filter(p => p.status === 'replied' || (p.status === 'not_interested' && p.replied_at)).length],
     ['activity', 'Activity', null],
     ...(S.readOnly ? [] : [['calls', 'Calls', S.calls ? realCalls().length : null]]),
+    ...(S.readOnly ? [] : [['stories', 'Stories', null]]),
     ['crm', 'My CRM', S.crmMine ? S.crmMine.length : null],
     ['board', 'Class board', S.crmBoard ? new Set(S.crmBoard.map(o => (o.owner || {}).name || '')).size : null],
   ];
@@ -2894,6 +3125,7 @@ function renderView() {
   else if (S.tab === 'calls') setHTML(v, renderCalls());
   else if (S.tab === 'crm') setHTML(v, renderCrm());
   else if (S.tab === 'board') setHTML(v, renderBoard());
+  else if (S.tab === 'stories') setHTML(v, renderStories());
   else setHTML(v, renderReview());
   fitTextareas();
 }
@@ -3394,6 +3626,8 @@ document.addEventListener('click', async e => {
   if (ptab) { S.pipeTab = ptab.dataset.pipetab; S.pipeAll = false; lsSet('pipe-tab', S.pipeTab); renderNotice(); return; }
   const pall = t.closest('[data-pipeall]');
   if (pall) { S.pipeAll = pall.dataset.pipeall === '1'; renderNotice(); return; }
+  const co = t.closest('[data-call-open]');
+  if (co) { openCall(co.dataset.callOpen); return; }
   const opener = t.closest('[data-open]');
   if (opener) { openDrawer(opener.dataset.open); return; }
   const mode = t.closest('[data-rvmode]');
